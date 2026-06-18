@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>DlgPrefSyncDlg</class>
+ <widget class="QWidget" name="DlgPrefSyncDlg">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>620</width>
+    <height>430</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Sync Preferences</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QGroupBox" name="GroupBoxAbletonLink">
+     <property name="title">
+      <string>Ableton Link</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayoutLink">
+      <item>
+       <widget class="QLabel" name="LabelLinkDescription">
+        <property name="text">
+         <string>Ableton Link synchronizes tempo and beat phase with other Link-capable applications on the local network.</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="CheckBoxEnableLink">
+        <property name="toolTip">
+         <string>Join or leave the current Ableton Link session.</string>
+        </property>
+        <property name="text">
+         <string>Enable Ableton Link</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="CheckBoxStartStopSync">
+        <property name="toolTip">
+         <string>Follow Link transport start and stop messages. Leave this off for most DJ sets unless transport should be shared with other Link peers.</string>
+        </property>
+        <property name="text">
+         <string>Enable Start/Stop Sync</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="GroupBoxStatus">
+     <property name="title">
+      <string>Session Status</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayoutStatus">
+      <item row="0" column="0">
+       <widget class="QLabel" name="LabelBuildStatus">
+        <property name="text">
+         <string>Build support</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QLabel" name="LabelBuildStatusValue">
+        <property name="text">
+         <string notr="true">n/a</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="LabelEffectiveState">
+        <property name="text">
+         <string>Effective state</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLabel" name="LabelEffectiveStateValue">
+        <property name="text">
+         <string notr="true">n/a</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="LabelPeers">
+        <property name="text">
+         <string>Peers</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QLabel" name="LabelPeersValue">
+        <property name="text">
+         <string notr="true">n/a</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="LabelBpm">
+        <property name="text">
+         <string>Session BPM</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QLabel" name="LabelBpmValue">
+        <property name="text">
+         <string notr="true">n/a</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QLabel" name="LabelBeatPhase">
+        <property name="text">
+         <string>Beat phase</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QLabel" name="LabelBeatPhaseValue">
+        <property name="text">
+         <string notr="true">n/a</string>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="0">
+       <widget class="QLabel" name="LabelQuantum">
+        <property name="text">
+         <string>Quantum</string>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="1">
+       <widget class="QLabel" name="LabelQuantumValue">
+        <property name="text">
+         <string notr="true">n/a</string>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="0">
+       <widget class="QLabel" name="LabelPlaying">
+        <property name="text">
+         <string>Playing state</string>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="1">
+       <widget class="QLabel" name="LabelPlayingValue">
+        <property name="text">
+         <string notr="true">n/a</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="2" rowspan="7">
+       <spacer name="horizontalSpacerStatus">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="GroupBoxWorkflow">
+     <property name="title">
+      <string>Recommended Workflow</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayoutWorkflow">
+      <item>
+       <widget class="QLabel" name="LabelWorkflow">
+        <property name="text">
+         <string>Enable Link in Mixxx and in another Link-capable application, then enable Sync on Mixxx decks that should follow the Link session tempo and phase. Start/Stop Sync is optional and is best left disabled unless the set deliberately shares transport control.</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <spacer name="verticalSpacer">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>40</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

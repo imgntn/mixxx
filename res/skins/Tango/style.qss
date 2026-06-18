@@ -396,6 +396,48 @@ WWidgetGroup {
     color: #999;
   }
 
+#AbletonLinkWidget {
+  qproperty-layoutAlignment: 'AlignLeft | AlignVCenter';
+  qproperty-layoutSpacing: 3;
+  padding: 2px 5px;
+  margin: 0px 0px 0px 4px;
+  border: 1px solid #3f6269;
+  border-radius: 3px;
+  background-color: #1f383c;
+}
+
+#AbletonLinkButton,
+#AbletonLinkStartStopButton,
+#AbletonLinkLaunchButton {
+  color: #d9eef2;
+  text-align: center;
+  font-weight: bold;
+  border: 1px solid #4f7a82;
+  background-color: #203f45;
+}
+  #AbletonLinkButton:hover,
+  #AbletonLinkStartStopButton:hover,
+  #AbletonLinkLaunchButton:hover {
+    border: 1px solid #8ed2df;
+  }
+
+#AbletonLinkButton[value="1"],
+#AbletonLinkStartStopButton[value="1"],
+#AbletonLinkLaunchButton[value="1"],
+#AbletonLinkButton[displayValue="1"],
+#AbletonLinkStartStopButton[displayValue="1"],
+#AbletonLinkLaunchButton[displayValue="1"] {
+  color: #ffffff;
+  border: 1px solid #8ed2df;
+  background-color: #2f5f68;
+}
+
+#AbletonLinkPeers,
+#AbletonLinkBpm {
+  color: #f2fbfd;
+  font-weight: bold;
+}
+
 #ClockBox {
   qproperty-layoutAlignment: 'AlignVCenter | AlignHCenter';
   padding: 2px 0px;

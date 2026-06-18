@@ -28,6 +28,7 @@
 #include "preferences/dialog/dlgprefeffects.h"
 #include "preferences/dialog/dlgprefinterface.h"
 #include "preferences/dialog/dlgprefmixer.h"
+#include "preferences/dialog/dlgprefsync.h"
 #include "preferences/dialog/dlgprefwaveform.h"
 #include "util/cmdlineargs.h"
 #include "waveform/waveformwidgetfactory.h"
@@ -186,6 +187,12 @@ DlgPreferences::DlgPreferences(
                           new QTreeWidgetItem(contentsTreeWidget, QTreeWidgetItem::Type)),
             tr("Decks"),
             "ic_preferences_decks.svg");
+
+    addPageWidget(PreferencesPage(
+                          new DlgPrefSync(this),
+                          new QTreeWidgetItem(contentsTreeWidget, QTreeWidgetItem::Type)),
+            tr("Sync"),
+            "ic_preferences_sync.svg");
 
     addPageWidget(PreferencesPage(
                           new DlgPrefMixer(this, pEffectsManager, m_pConfig),

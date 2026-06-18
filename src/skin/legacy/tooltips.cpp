@@ -666,6 +666,32 @@ void Tooltips::addStandardTooltips() {
             << tr("Decks with sync locked will all play at the same tempo, and decks that also have "
                   "quantize enabled will always have their beats lined up.");
 
+    add("ableton_link_sync_enabled")
+            << tr("Ableton Link")
+            << tr("Join or leave the current Ableton Link session.")
+            << tr("When enabled, Mixxx follows the shared Link tempo and publishes its beat phase "
+                  "for other Link-capable applications.");
+
+    add("ableton_link_num_peers")
+            << tr("Ableton Link Peers")
+            << tr("Shows how many other applications or devices are currently connected to the "
+                  "Ableton Link session.");
+
+    add("ableton_link_bpm")
+            << tr("Ableton Link BPM")
+            << tr("Shows the current tempo of the Ableton Link session.");
+
+    add("ableton_link_start_stop_sync")
+            << tr("Ableton Link Start/Stop Sync")
+            << tr("Toggles whether Link transport start and stop messages start or stop synced Mixxx decks.")
+            << tr("Leave this off for most DJ sets unless you explicitly want transport start/stop "
+                  "to be shared with other Link peers.");
+
+    add("ableton_link_quantized_launch")
+            << tr("Ableton Link Quantized Launch")
+            << tr("Starts Link transport and synced Mixxx decks on the next Link beat.")
+            << tr("Requires Link and Start/Stop Sync to be enabled.");
+
     // TODO(owen): find a better phrase for "the other deck"
     add("sync_reset_key")
             << tr("Sync and Reset Key")

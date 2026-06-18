@@ -1375,6 +1375,7 @@ add_library(
   src/engine/sidechain/enginesidechain.cpp
   src/engine/sidechain/networkinputstreamworker.cpp
   src/engine/sidechain/networkoutputstreamworker.cpp
+  src/engine/sync/abletonlink.cpp
   src/engine/sync/enginesync.cpp
   src/engine/sync/internalclock.cpp
   src/engine/sync/synccontrol.cpp
@@ -1559,6 +1560,8 @@ add_library(
   src/preferences/dialog/dlgprefrecorddlg.ui
   src/preferences/dialog/dlgprefreplaygain.cpp
   src/preferences/dialog/dlgprefreplaygaindlg.ui
+  src/preferences/dialog/dlgprefsync.cpp
+  src/preferences/dialog/dlgprefsyncdlg.ui
   src/preferences/dialog/dlgprefsound.cpp
   src/preferences/dialog/dlgprefsounddlg.ui
   src/preferences/dialog/dlgprefsounditem.cpp
@@ -3210,6 +3213,67 @@ if(WIN32)
       "${CMAKE_CURRENT_BINARY_DIR}/src/gitinfo.h"
   )
   target_include_directories(mixxx PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+endif()
+
+# Ableton Link
+option(ABLETONLINK "Support Ableton Link tempo synchronization" ON)
+cmake_dependent_option(
+  FETCH_ABLETONLINK
+  "Download Ableton Link during configure if no system package is found"
+  ON
+  "ABLETONLINK"
+  OFF
+)
+
+if(ABLETONLINK)
+  find_package(
+    AbletonLink
+    NAMES AbletonLink ableton ableton-link ableton-link-dev
+  )
+  # Note Debian Bug#993999 - Wrong CMake include path: https://salsa.debian.org/multimedia-team/ableton-link/-/commit/047f75abeeb6494256cb8d498995c17afd2a17e8
+
+  if(AbletonLink_FOUND)
+    message(STATUS "Using existing system installation of Ableton Link")
+    target_link_libraries(mixxx-lib PUBLIC Ableton::Link)
+  elseif(FETCH_ABLETONLINK)
+    message(STATUS "Fetch Ableton Link from GitHub")
+    include(FetchContent)
+
+    set(FETCHCONTENT_QUIET FALSE)
+
+    FetchContent_Declare(
+      AbletonLink
+      GIT_REPOSITORY https://github.com/Ableton/link.git
+      GIT_TAG Link-3.0.6
+    )
+    FetchContent_MakeAvailable(AbletonLink)
+
+    include(${abletonlink_SOURCE_DIR}/AbletonLinkConfig.cmake)
+    target_link_libraries(mixxx-lib PUBLIC Ableton::Link)
+    target_include_directories(
+      mixxx-lib
+      SYSTEM
+      PUBLIC ${abletonlink_SOURCE_DIR}/include/
+    )
+  else()
+    message(
+      FATAL_ERROR
+      "Ableton Link support requested but AbletonLink was not found"
+    )
+  endif()
+
+  target_compile_definitions(mixxx-lib PUBLIC __ABLETONLINK__)
+
+  if(WIN32)
+    # Ableton Link pulls in Asio, which must include winsock2.h before
+    # windows.h includes the legacy winsock.h declarations.
+    target_compile_definitions(mixxx-lib PUBLIC WIN32_LEAN_AND_MEAN)
+  endif()
+
+  # Ensure Ableton Link headers see LINK_PLATFORM_LINUX set
+  if(CMAKE_SYSTEM_NAME STREQUAL "Android")
+    target_compile_definitions(mixxx-lib PUBLIC LINK_PLATFORM_LINUX=1)
+  endif()
 endif()
 
 # Chromaprint

@@ -6,6 +6,7 @@
 #include "preferences/usersettings.h"
 
 class InternalClock;
+class AbletonLink;
 class EngineChannel;
 
 const QString kBpmConfigGroup = QStringLiteral("[BPM]");
@@ -71,7 +72,12 @@ class EngineSync : public SyncableListener {
 
     void addSyncableDeck(Syncable* pSyncable);
     EngineChannel* getLeaderChannel() const;
+    bool isSynchronizedDeckPlaying() const;
+    void setLinkTransportPlaying(bool playing);
     void onCallbackStart(mixxx::audio::SampleRate sampleRate, std::size_t bufferSize);
+    void onCallbackStart(mixxx::audio::SampleRate sampleRate,
+            std::size_t bufferSize,
+            std::chrono::microseconds absTimeWhenPrevOutputBufferReachesDac);
     void onCallbackEnd(mixxx::audio::SampleRate sampleRate, std::size_t bufferSize);
 
   private:
@@ -136,6 +142,8 @@ class EngineSync : public SyncableListener {
     /// This is used to initialize leader params.
     Syncable* getUniquePlayingSyncedDeck() const;
 
+    void publishLinkTransportPlaying();
+
     /// Only for testing. Do not use.
     Syncable* getSyncableForGroup(const QString& group);
 
@@ -163,6 +171,8 @@ class EngineSync : public SyncableListener {
     UserSettingsPointer m_pConfig;
     /// The InternalClock syncable.
     InternalClock* m_pInternalClock;
+    /// The Ableton Link syncable.
+    AbletonLink* m_pAbletonLink;
     /// The current Syncable that is the leader.
     Syncable* m_pLeaderSyncable;
     /// The list of all Syncables registered via addSyncableDeck.

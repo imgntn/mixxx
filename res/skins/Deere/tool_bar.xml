@@ -300,6 +300,80 @@
             <SizePolicy>min,min</SizePolicy>
             <Children>
 
+              <!-- Ableton Link Widget -->
+              <WidgetGroup>
+                <ObjectName>AbletonLinkWidget</ObjectName>
+                <Layout>horizontal</Layout>
+                <SizePolicy>min,min</SizePolicy>
+                <Children>
+                  <Template src="skin:left_2state_button.xml">
+                    <SetVariable name="TooltipId">ableton_link_sync_enabled</SetVariable>
+                    <SetVariable name="ObjectName">AbletonLinkButton</SetVariable>
+                    <SetVariable name="MinimumSize">42,22</SetVariable>
+                    <SetVariable name="MaximumSize">42,22</SetVariable>
+                    <SetVariable name="SizePolicy">f,f</SetVariable>
+                    <SetVariable name="state_0_text">Link</SetVariable>
+                    <SetVariable name="state_1_text">Link</SetVariable>
+                    <SetVariable name="left_connection_control">[AbletonLink],sync_enabled</SetVariable>
+                  </Template>
+
+                  <Number>
+                    <TooltipId>ableton_link_num_peers</TooltipId>
+                    <ObjectName>AbletonLinkPeers</ObjectName>
+                    <Size>25f,22f</Size>
+                    <NumberOfDigits>0</NumberOfDigits>
+                    <Alignment>center</Alignment>
+                    <Connection>
+                      <ConfigKey>[AbletonLink],num_peers</ConfigKey>
+                    </Connection>
+                  </Number>
+
+                  <Number>
+                    <TooltipId>ableton_link_bpm</TooltipId>
+                    <ObjectName>AbletonLinkBpm</ObjectName>
+                    <Size>45f,22f</Size>
+                    <NumberOfDigits>2</NumberOfDigits>
+                    <Alignment>center</Alignment>
+                    <Connection>
+                      <ConfigKey>[AbletonLink],bpm</ConfigKey>
+                    </Connection>
+                  </Number>
+
+                  <Template src="skin:left_2state_button.xml">
+                    <SetVariable name="TooltipId">ableton_link_start_stop_sync</SetVariable>
+                    <SetVariable name="ObjectName">AbletonLinkStartStopButton</SetVariable>
+                    <SetVariable name="MinimumSize">70,22</SetVariable>
+                    <SetVariable name="MaximumSize">70,22</SetVariable>
+                    <SetVariable name="SizePolicy">f,f</SetVariable>
+                    <SetVariable name="state_0_text">Start/Stop</SetVariable>
+                    <SetVariable name="state_1_text">Start/Stop</SetVariable>
+                    <SetVariable name="left_connection_control">[AbletonLink],start_stop_sync_enabled</SetVariable>
+                  </Template>
+
+                  <PushButton>
+                    <TooltipId>ableton_link_quantized_launch</TooltipId>
+                    <ObjectName>AbletonLinkLaunchButton</ObjectName>
+                    <MinimumSize>54,22</MinimumSize>
+                    <MaximumSize>54,22</MaximumSize>
+                    <SizePolicy>f,f</SizePolicy>
+                    <NumberStates>1</NumberStates>
+                    <State>
+                      <Number>0</Number>
+                      <Text>Launch</Text>
+                      <Pressed></Pressed>
+                      <Unpressed></Unpressed>
+                    </State>
+                    <Connection>
+                      <ConfigKey>[AbletonLink],quantized_launch</ConfigKey>
+                      <ButtonState>LeftButton</ButtonState>
+                    </Connection>
+                  </PushButton>
+
+                  <WidgetGroup><Size>14f,0min</Size></WidgetGroup>
+                </Children>
+              </WidgetGroup>
+              <!-- /Ableton Link Widget -->
+
               <WidgetGroup>
                 <TooltipId>recording_duration</TooltipId>
                 <Layout>horizontal</Layout>

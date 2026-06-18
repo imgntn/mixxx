@@ -1099,3 +1099,40 @@ WRateRange {
   font-size: 10px;
   qproperty-alignment: 'AlignCenter';
 }
+
+/* Ableton Link Widgets */
+
+#AbletonLinkPanel {
+  background-color: #1f383c;
+  border: 1px solid #3f6269;
+  border-radius: 3px;
+}
+
+#AbletonLinkButton,
+#AbletonLinkStartStopButton,
+#AbletonLinkLaunchButton {
+  font-size: 8px;
+  font-weight: bold;
+  color: #d9eef2;
+  background-color: #203f45;
+  border: 1px solid #4f7a82;
+  border-radius: 2px;
+}
+
+#AbletonLinkButton[value="1"],
+#AbletonLinkStartStopButton[value="1"],
+#AbletonLinkLaunchButton[value="1"],
+#AbletonLinkButton[displayValue="1"],
+#AbletonLinkStartStopButton[displayValue="1"],
+#AbletonLinkLaunchButton[displayValue="1"] {
+  color: #ffffff;
+  background-color: #2f5f68;
+  border: 1px solid #8ed2df;
+}
+
+#AbletonLinkPeers,
+#AbletonLinkBpm {
+  font-size: 8px;
+  font-weight: bold;
+  color: #f2fbfd;
+}

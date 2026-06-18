@@ -418,6 +418,58 @@ ControlPickerMenu::ControlPickerMenu(QWidget* pParent)
             tr("Decrease internal Leader BPM by 0.1"),
             pSyncMenu);
     pSyncMenu->addSeparator();
+    addControl("[AbletonLink]",
+            "sync_enabled",
+            tr("Ableton Link"),
+            tr("Join or leave the current Ableton Link session"),
+            pSyncMenu);
+    addControl("[AbletonLink]",
+            "start_stop_sync_enabled",
+            tr("Ableton Link Start/Stop Sync"),
+            tr("Follow Ableton Link transport start and stop messages"),
+            pSyncMenu);
+    addControl("[AbletonLink]",
+            "quantized_launch",
+            tr("Ableton Link Quantized Launch"),
+            tr("Start Link transport and synced Mixxx decks on the next Link beat"),
+            pSyncMenu);
+    addControl("[AbletonLink]",
+            "num_peers",
+            tr("Ableton Link Peers"),
+            tr("Number of connected Ableton Link peers"),
+            pSyncMenu);
+    addControl("[AbletonLink]",
+            "bpm",
+            tr("Ableton Link Session BPM"),
+            tr("Current Ableton Link session tempo"),
+            pSyncMenu);
+    addControl("[AbletonLink]",
+            "beat_distance",
+            tr("Ableton Link Beat Phase"),
+            tr("Current Ableton Link beat phase from 0 to 1"),
+            pSyncMenu);
+    addControl("[AbletonLink]",
+            "quantum",
+            tr("Ableton Link Quantum"),
+            tr("Current Ableton Link quantum used by Mixxx"),
+            pSyncMenu);
+    addControl("[AbletonLink]",
+            "playing",
+            tr("Ableton Link Playing State"),
+            tr("Current Ableton Link start/stop playing state"),
+            pSyncMenu);
+    addControl("[AbletonLink]",
+            "next_beat_time_micros",
+            tr("Ableton Link Next Beat Time"),
+            tr("Ableton Link clock time of the next beat, in microseconds"),
+            pSyncMenu);
+    addControl("[AbletonLink]",
+            "quantized_launch_time_micros",
+            tr("Ableton Link Quantized Launch Time"),
+            tr("Scheduled Ableton Link quantized launch time, in microseconds"),
+            pSyncMenu);
+
+    pSyncMenu->addSeparator();
     addDeckAndSamplerControl("sync_leader",
             tr("Sync Leader"),
             tr("Sync mode 3-state toggle / indicator (Off, Soft Leader, "

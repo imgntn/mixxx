@@ -1101,6 +1101,44 @@ WBeatSpinBox,
 
 /* End spacing for toolbar */
 
+#AbletonLinkWidget {
+  qproperty-layoutAlignment: 'AlignLeft | AlignVCenter';
+  qproperty-layoutSpacing: 3;
+  padding: 2px 5px;
+  margin: 0px 0px 0px 4px;
+  border: 1px solid #3f6269;
+  border-radius: 3px;
+  background-color: #1f383c;
+}
+
+#AbletonLinkButton,
+#AbletonLinkStartStopButton,
+#AbletonLinkLaunchButton {
+  color: #d9eef2;
+  font-weight: bold;
+  text-align: center;
+  border: 1px solid #4f7a82;
+  border-radius: 3px;
+  background-color: #203f45;
+}
+
+#AbletonLinkButton[value="1"],
+#AbletonLinkStartStopButton[value="1"],
+#AbletonLinkLaunchButton[value="1"],
+#AbletonLinkButton[displayValue="1"],
+#AbletonLinkStartStopButton[displayValue="1"],
+#AbletonLinkLaunchButton[displayValue="1"] {
+  color: #ffffff;
+  background-color: #2f5f68;
+  border: 1px solid #8ed2df;
+}
+
+#AbletonLinkPeers,
+#AbletonLinkBpm {
+  color: #f2fbfd;
+  font-weight: bold;
+}
+
 #Time {
   font: bold 13px;
 }
