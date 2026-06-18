@@ -35,6 +35,10 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
           m_absTimeWhenPrevOutputBufferReachesDacMicros(0),
           m_lastStartStopSyncChangeTime(0),
           m_quantizedLaunchTime(0),
+          m_startStopSyncTimer(this),
+          m_scheduledStartStopSyncPlaying(false),
+          m_scheduledStartStopSyncTime(0),
+          m_scheduledStartStopSyncGeneration(0),
 #ifdef __ABLETONLINK__
           m_pLink(std::make_unique<MixxxAbletonLink>(kDefaultLinkTempo)),
 #endif
@@ -73,6 +77,11 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
             &ControlObject::valueChanged,
             this,
             &AbletonLink::slotControlQuantizedLaunch);
+    m_startStopSyncTimer.setSingleShot(true);
+    connect(&m_startStopSyncTimer,
+            &QTimer::timeout,
+            this,
+            &AbletonLink::applyScheduledStartStopSync);
 
     m_pEnabled->setReadOnly();
     m_pNumLinkPeers->setReadOnly();
@@ -189,22 +198,10 @@ void AbletonLink::slotLinkStartStopChanged(
     const auto boundedDelay = std::min<long long>(
             delayMillis,
             std::numeric_limits<int>::max());
-    QTimer::singleShot(
-            static_cast<int>(boundedDelay),
-            this,
-            [this, playing, timeForIsPlaying, generation]() {
-                if (generation !=
-                                m_startStopSyncGeneration.load(std::memory_order_acquire) ||
-                        !isEnabled() ||
-                        !isStartStopSyncEnabled() ||
-                        timeForIsPlaying != m_lastStartStopSyncChangeTime) {
-                    return;
-                }
-                m_pEngineSync->setLinkTransportPlaying(playing);
-                if (!playing || timeForIsPlaying == m_quantizedLaunchTime) {
-                    clearQuantizedLaunchTime();
-                }
-            });
+    m_scheduledStartStopSyncPlaying = playing;
+    m_scheduledStartStopSyncTime = timeForIsPlaying;
+    m_scheduledStartStopSyncGeneration = generation;
+    m_startStopSyncTimer.start(static_cast<int>(boundedDelay));
 #else
     Q_UNUSED(playing);
     Q_UNUSED(timeForIsPlaying);
@@ -271,6 +268,7 @@ void AbletonLink::setEnabled(bool enabled) {
     m_linkEnabled.store(effectiveEnabled, std::memory_order_relaxed);
     if (!effectiveEnabled) {
         cancelPendingStartStopSync();
+        publishSessionState(mixxx::Bpm(kDefaultLinkTempo), 0.0, false);
         m_pNextBeatTime->forceSet(0.0);
     }
 #ifdef __ABLETONLINK__
@@ -432,7 +430,8 @@ void AbletonLink::updateLeaderBpm(mixxx::Bpm bpm) {
 void AbletonLink::notifyLeaderParamSource() {
     // In Ableton Link all peers are equal. Therefore nothing differs,
     // if AbletonLink becomes SyncLeader.
-    // TODO: Check the special case of half/double BPM sync.
+    // Half/double BPM handling is resolved by EngineSync before leader
+    // parameters are published to Link.
 }
 
 void AbletonLink::reinitLeaderParams(double beatDistance, mixxx::Bpm, mixxx::Bpm bpm) {
@@ -521,6 +520,21 @@ void AbletonLink::publishSessionState(mixxx::Bpm bpm, double beatDistance, bool 
     m_pPlaying->forceSet(playing ? 1.0 : 0.0);
 }
 
+void AbletonLink::applyScheduledStartStopSync() {
+    if (m_scheduledStartStopSyncGeneration !=
+                    m_startStopSyncGeneration.load(std::memory_order_acquire) ||
+            !isEnabled() ||
+            !isStartStopSyncEnabled() ||
+            m_scheduledStartStopSyncTime != m_lastStartStopSyncChangeTime) {
+        return;
+    }
+    m_pEngineSync->setLinkTransportPlaying(m_scheduledStartStopSyncPlaying);
+    if (!m_scheduledStartStopSyncPlaying ||
+            m_scheduledStartStopSyncTime == m_quantizedLaunchTime) {
+        clearQuantizedLaunchTime();
+    }
+}
+
 std::chrono::microseconds AbletonLink::currentCallbackTime() const {
     return std::chrono::microseconds(
             m_absTimeWhenPrevOutputBufferReachesDacMicros.load(std::memory_order_relaxed));
@@ -531,7 +545,12 @@ void AbletonLink::cancelPendingStartStopSync() {
     m_pendingStartStopSyncState.store(
             kNoPendingStartStopSyncState,
             std::memory_order_release);
+    m_startStopSyncTimer.stop();
     m_lastStartStopSyncChangeTime = std::chrono::microseconds(0);
+    m_scheduledStartStopSyncPlaying = false;
+    m_scheduledStartStopSyncTime = std::chrono::microseconds(0);
+    m_scheduledStartStopSyncGeneration =
+            m_startStopSyncGeneration.load(std::memory_order_acquire);
     clearQuantizedLaunchTime();
 }
 

@@ -100,6 +100,14 @@ An Ableton Live smoke-test set is included at:
 res/abletonlink/templates/example_ableton_mixxx_link_template_set.als
 ```
 
+Manual release verification steps for Ableton Live, alternate Link peers,
+Windows audio backend behavior, network churn, audio device churn, and soak
+testing are documented in:
+
+```text
+res/abletonlink/MANUAL_VERIFICATION.md
+```
+
 ## Test environment notes
 
 The Ableton Link code does not require QML. Some existing Mixxx controller

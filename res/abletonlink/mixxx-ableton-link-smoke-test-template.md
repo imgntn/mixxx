@@ -7,6 +7,10 @@ bridge device, or custom audio routing.
 For build options, public controls, UI behavior, and test environment notes, see
 `res/abletonlink/README.md`.
 
+For release verification across Windows audio backends, alternate Link peers,
+network churn, audio device churn, and long-running soak tests, see
+`res/abletonlink/MANUAL_VERIFICATION.md`.
+
 An example Ableton Live 12 set is included at:
 
 `res/abletonlink/templates/example_ableton_mixxx_link_template_set.als`

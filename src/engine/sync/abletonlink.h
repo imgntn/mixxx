@@ -7,6 +7,8 @@
 #include <memory>
 #include <optional>
 
+#include <QTimer>
+
 #ifdef __ABLETONLINK__
 #include <ableton/Link.hpp>
 #include <ableton/platforms/stl/Clock.hpp>
@@ -145,6 +147,7 @@ class AbletonLink : public QObject, public Syncable {
             uint64_t generation);
     void setNumPeers(std::size_t numPeers);
     void publishSessionState(mixxx::Bpm bpm, double beatDistance, bool playing);
+    void applyScheduledStartStopSync();
     std::chrono::microseconds currentCallbackTime() const;
     void cancelPendingStartStopSync();
     void clearQuantizedLaunchTime();
@@ -170,6 +173,10 @@ class AbletonLink : public QObject, public Syncable {
     std::atomic<int64_t> m_absTimeWhenPrevOutputBufferReachesDacMicros;
     std::chrono::microseconds m_lastStartStopSyncChangeTime;
     std::chrono::microseconds m_quantizedLaunchTime;
+    QTimer m_startStopSyncTimer;
+    bool m_scheduledStartStopSyncPlaying;
+    std::chrono::microseconds m_scheduledStartStopSyncTime;
+    uint64_t m_scheduledStartStopSyncGeneration;
 
 #ifdef __ABLETONLINK__
     std::unique_ptr<MixxxAbletonLink> m_pLink;
