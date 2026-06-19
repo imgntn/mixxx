@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ableton Link Windows Validation Checklist</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --text: #17202a;
+      --muted: #5d6875;
+      --line: #d8dee6;
+      --accent: #0b6f85;
+      --accent-soft: #dff3f6;
+      --ok: #167a3a;
+      --warn: #a35f00;
+      --danger: #a62626;
+      --shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      line-height: 1.45;
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: rgba(244, 246, 248, 0.96);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(8px);
+    }
+
+    .header-inner {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 18px 20px 14px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 1.55rem;
+      font-weight: 650;
+      letter-spacing: 0;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) auto;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .progress-wrap {
+      display: grid;
+      gap: 6px;
+    }
+
+    .progress-label {
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .progress {
+      width: 100%;
+      height: 12px;
+      overflow: hidden;
+      background: #e4e9ef;
+      border-radius: 999px;
+    }
+
+    .progress > span {
+      display: block;
+      width: 0;
+      height: 100%;
+      background: linear-gradient(90deg, #0b6f85, #16875c);
+      transition: width 140ms ease;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    button {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--text);
+      min-height: 34px;
+      padding: 7px 11px;
+      border-radius: 6px;
+      font: inherit;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+    }
+
+    button:hover {
+      border-color: var(--accent);
+    }
+
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+    }
+
+    button.danger {
+      color: var(--danger);
+    }
+
+    main {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 22px 20px 42px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(150px, 1fr));
+      gap: 10px;
+      padding: 14px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    label.field {
+      display: grid;
+      gap: 4px;
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+
+    input[type="text"],
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 7px 9px;
+      font: inherit;
+      color: var(--text);
+      background: white;
+    }
+
+    textarea {
+      min-height: 62px;
+      resize: vertical;
+    }
+
+    section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfd;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 650;
+      letter-spacing: 0;
+    }
+
+    .section-progress {
+      color: var(--muted);
+      font-size: 0.86rem;
+      white-space: nowrap;
+    }
+
+    .section-body {
+      padding: 8px 14px 14px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .note {
+      margin: 4px 0 0;
+      padding: 10px 12px;
+      background: var(--accent-soft);
+      border-left: 3px solid var(--accent);
+      border-radius: 6px;
+      color: #174f5d;
+      font-size: 0.92rem;
+    }
+
+    .task {
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1fr);
+      gap: 8px;
+      align-items: start;
+      padding: 8px 2px;
+      border-bottom: 1px solid #edf0f3;
+    }
+
+    .task:last-child {
+      border-bottom: 0;
+    }
+
+    .task input[type="checkbox"] {
+      margin-top: 3px;
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+    }
+
+    .task-text {
+      display: grid;
+      gap: 5px;
+    }
+
+    .task-title {
+      font-size: 0.96rem;
+    }
+
+    .task.done .task-title {
+      color: var(--muted);
+      text-decoration: line-through;
+    }
+
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: #eef2f6;
+      color: var(--muted);
+      font-size: 0.76rem;
+      font-weight: 600;
+    }
+
+    .tag.ask {
+      background: #fff3d8;
+      color: var(--warn);
+    }
+
+    .tag.audio {
+      background: #e4f6ea;
+      color: var(--ok);
+    }
+
+    .tag.auto {
+      background: #e5f1ff;
+      color: #1a5b93;
+    }
+
+    .task-note {
+      display: none;
+      margin-top: 3px;
+    }
+
+    .task.show-note .task-note {
+      display: block;
+    }
+
+    .task-note textarea {
+      min-height: 48px;
+      font-size: 0.9rem;
+    }
+
+    .task-tools {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .mini {
+      min-height: 26px;
+      padding: 3px 7px;
+      font-size: 0.8rem;
+      box-shadow: none;
+    }
+
+    .footer-note {
+      color: var(--muted);
+      font-size: 0.88rem;
+      padding: 4px 2px 0;
+    }
+
+    @media (max-width: 800px) {
+      .summary {
+        grid-template-columns: 1fr;
+      }
+
+      .actions {
+        justify-content: flex-start;
+      }
+
+      .meta {
+        grid-template-columns: 1fr;
+      }
+
+      .section-head {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <h1>Ableton Link Windows Validation</h1>
+      <div class="summary">
+        <div class="progress-wrap">
+          <div class="progress-label" id="overallLabel">0 of 0 tasks complete</div>
+          <div class="progress" aria-hidden="true"><span id="overallBar"></span></div>
+        </div>
+        <div class="actions">
+          <button type="button" class="primary" id="exportButton">Export JSON</button>
+          <button type="button" id="printButton">Print</button>
+          <button type="button" class="danger" id="resetButton">Reset</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="meta" id="metaFields"></div>
+    <div id="sections"></div>
+    <p class="footer-note">
+      Progress is saved in this browser with localStorage. Export JSON before
+      clearing browser data or switching machines.
+    </p>
+  </main>
+
+  <script>
+    const storageKey = "mixxx-ableton-link-windows-validation-v1";
+
+    const metaFields = [
+      ["mixxxCommit", "Mixxx commit"],
+      ["liveVersion", "Ableton Live version"],
+      ["windowsVersion", "Windows version"],
+      ["audioInterface", "Audio interface"],
+      ["asioDriver", "Native ASIO driver"],
+      ["asio4all", "ASIO4ALL available"],
+      ["network", "Network/VPN notes"],
+      ["operator", "Operator"]
+    ];
+
+    const sections = [
+      {
+        title: "A. Prep And Guardrails",
+        note: "Stop old validation processes, choose profile/device, and confirm routing is safe.",
+        tasks: [
+          ["Confirm no old mixxx.exe, mixxx-test.exe, or mixxx-link-peer.exe processes are running.", ["auto"]],
+          ["Create a timestamped validation log folder.", ["auto"]],
+          ["Choose normal Mixxx profile or isolated --settings-path.", ["ask"]],
+          ["Confirm it is okay to interrupt the current Ableton Live/Mixxx audio session.", ["ask"]],
+          ["Choose the audio interface for native ASIO.", ["ask"]],
+          ["Confirm speaker/headphone routing is safe and volume is not dangerous.", ["audio", "ask"]]
+        ]
+      },
+      {
+        title: "B. Native ASIO Live/Mixxx Session",
+        note: "This is the primary Windows pass with the real audio interface driver.",
+        tasks: [
+          ["Launch Ableton Live.", ["auto"]],
+          ["Select the native ASIO driver in Live.", ["ask"]],
+          ["Confirm Live shows its Link button.", ["ask"]],
+          ["Enable Link in Live.", ["ask"]],
+          ["Launch Mixxx.", ["auto"]],
+          ["Enable Mixxx Link.", ["auto"]],
+          ["Confirm Mixxx peer count includes Live.", ["ask"]],
+          ["Change Live tempo and confirm Mixxx Link BPM follows.", ["ask"]],
+          ["Change Mixxx leader/deck tempo and confirm Live follows.", ["ask"]],
+          ["Confirm linked playback sounds phase-aligned with no obvious glitching.", ["audio", "ask"]]
+        ]
+      },
+      {
+        title: "C. Start/Stop Sync And Launch",
+        note: "Transport and quantized launch behavior with real Live transport.",
+        tasks: [
+          ["Enable Sync on a Mixxx deck.", ["auto"]],
+          ["Enable Mixxx Start/Stop Sync.", ["auto"]],
+          ["Start and stop Live transport.", ["ask"]],
+          ["Confirm synced Mixxx decks start and stop with Live.", ["audio", "ask"]],
+          ["Start and stop Mixxx transport.", ["auto"]],
+          ["Confirm Live follows Mixxx transport when Start/Stop Sync is enabled.", ["ask"]],
+          ["Press Mixxx Launch with synced decks stopped.", ["auto"]],
+          ["Confirm the deck starts on the next Link beat.", ["audio", "ask"]],
+          ["Disable Link while Launch is pending.", ["auto"]],
+          ["Confirm pending Launch clears and does not fire later.", ["ask"]]
+        ]
+      },
+      {
+        title: "D. ASIO4ALL",
+        note: "Skip only if ASIO4ALL is not installed or is unsuitable for this machine.",
+        tasks: [
+          ["Switch Live to ASIO4ALL.", ["ask"]],
+          ["Confirm Live accepts ASIO4ALL without device errors.", ["ask"]],
+          ["Confirm Live still shows its Link button.", ["ask"]],
+          ["Enable Link in Live.", ["ask"]],
+          ["Repeat peer count and tempo-follow checks.", ["ask"]],
+          ["Repeat Start/Stop Sync and Launch checks.", ["ask"]],
+          ["Confirm audio remains aligned and free of unexpected dropouts.", ["audio", "ask"]]
+        ]
+      },
+      {
+        title: "E. DirectX/MME Caveat",
+        note: "This validates Ableton Live's own Link-button behavior, not Mixxx's build support.",
+        tasks: [
+          ["Switch Live to DirectX/MME.", ["ask"]],
+          ["Record whether Live hides its own Link button.", ["ask"]],
+          ["Confirm Mixxx Link controls remain visible.", ["ask"]],
+          ["Switch Live back to ASIO.", ["ask"]],
+          ["Confirm Live's Link button reappears and Link works again.", ["ask"]]
+        ]
+      },
+      {
+        title: "F. UI And Scaling",
+        note: "Check readability, tooltips, spacing, and scale behavior.",
+        tasks: [
+          ["Check every edited skin where Link controls appear.", ["ask"]],
+          ["Confirm Link, peer count, BPM, Start/Stop Sync, and Launch are readable.", ["ask"]],
+          ["Confirm Start/Stop Sync is understandable from its tooltip.", ["ask"]],
+          ["Confirm Link BPM contrast is acceptable.", ["ask"]],
+          ["Confirm Link controls do not crowd or overlap the clock/toolbar.", ["ask"]],
+          ["Check display scaling at 100%.", ["ask"]],
+          ["Check display scaling at 125%.", ["ask"]],
+          ["Check display scaling at 150%.", ["ask"]]
+        ]
+      },
+      {
+        title: "G. Audio Churn",
+        note: "Pause before each device change. Expect brief interruptions; look for recovery.",
+        tasks: [
+          ["Choose safe Mixxx buffer-size change.", ["ask"]],
+          ["Change Mixxx buffer size.", ["auto"]],
+          ["Confirm audio resumes and Link remains aligned.", ["audio", "ask"]],
+          ["Choose safe Mixxx sample-rate change.", ["ask"]],
+          ["Change Mixxx sample rate.", ["auto"]],
+          ["Confirm peer count, tempo follow, and transport still work.", ["audio", "ask"]],
+          ["Choose safe Mixxx audio device/API change if available.", ["ask"]],
+          ["Switch Mixxx audio device/API.", ["auto"]],
+          ["Confirm no crash, stale Launch, stuck playing state, or broken peer count.", ["audio", "ask"]]
+        ]
+      },
+      {
+        title: "H. Network Churn",
+        note: "Only perform disruptive network steps when they are safe for the current session.",
+        tasks: [
+          ["Confirm it is okay to interrupt network connectivity.", ["ask"]],
+          ["Turn Wi-Fi off/on or disconnect/reconnect Ethernet.", ["ask"]],
+          ["Confirm peer count drops and recovers.", ["ask"]],
+          ["Toggle VPN if active and safe.", ["ask"]],
+          ["Temporarily block/unblock Mixxx in Windows Firewall if comfortable.", ["ask"]],
+          ["Confirm tempo/phase recover after network restoration.", ["audio", "ask"]],
+          ["Confirm pending Launch does not remain stale through network loss.", ["ask"]]
+        ]
+      },
+      {
+        title: "I. Soak",
+        note: "Run linked Mixxx and Live long enough to catch drift, stale UI, and resource growth.",
+        tasks: [
+          ["Choose soak duration: 30, 60, or 120 minutes.", ["ask"]],
+          ["Decide whether synthetic peers should run during soak.", ["ask"]],
+          ["Start timestamped soak log.", ["auto"]],
+          ["Keep one synced Mixxx deck playing for part of the run.", ["ask"]],
+          ["Periodically change tempo in Live.", ["ask"]],
+          ["Periodically change tempo in Mixxx.", ["auto"]],
+          ["Periodically start/stop Live transport.", ["ask"]],
+          ["Periodically start/stop Mixxx transport.", ["auto"]],
+          ["Trigger Launch repeatedly.", ["auto"]],
+          ["10-15 minute check-in: audio still aligned, no drift/dropouts/missed starts.", ["audio", "ask"]],
+          ["Final check: no stuck UI, crash, sustained CPU growth, or memory growth.", ["ask"]]
+        ]
+      },
+      {
+        title: "Final Record",
+        note: "Fill these in before moving on to macOS validation.",
+        tasks: [
+          ["Record Mixxx commit.", ["ask"]],
+          ["Record Ableton Live version.", ["ask"]],
+          ["Record Windows version.", ["ask"]],
+          ["Record audio interface and driver names.", ["ask"]],
+          ["Record pass/fail/skipped status for every phase.", ["ask"]],
+          ["Record failure notes, screenshots, and log paths.", ["ask"]],
+          ["Confirm minimum bar is met before macOS validation.", ["ask"]]
+        ]
+      }
+    ];
+
+    let state = loadState();
+
+    function loadState() {
+      try {
+        return JSON.parse(localStorage.getItem(storageKey)) || { checks: {}, notes: {}, meta: {} };
+      } catch (_) {
+        return { checks: {}, notes: {}, meta: {} };
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem(storageKey, JSON.stringify(state));
+      updateProgress();
+    }
+
+    function idFor(sectionIndex, taskIndex) {
+      return `s${sectionIndex}-t${taskIndex}`;
+    }
+
+    function renderMeta() {
+      const host = document.getElementById("metaFields");
+      for (const [key, label] of metaFields) {
+        const wrapper = document.createElement("label");
+        wrapper.className = "field";
+        wrapper.textContent = label;
+        const input = document.createElement("input");
+        input.type = "text";
+        input.value = state.meta[key] || "";
+        input.addEventListener("input", () => {
+          state.meta[key] = input.value;
+          saveState();
+        });
+        wrapper.appendChild(input);
+        host.appendChild(wrapper);
+      }
+    }
+
+    function renderSections() {
+      const host = document.getElementById("sections");
+      sections.forEach((section, sectionIndex) => {
+        const sectionEl = document.createElement("section");
+        sectionEl.dataset.section = sectionIndex;
+
+        const head = document.createElement("div");
+        head.className = "section-head";
+        const title = document.createElement("h2");
+        title.textContent = section.title;
+        const progress = document.createElement("div");
+        progress.className = "section-progress";
+        progress.id = `section-progress-${sectionIndex}`;
+        head.append(title, progress);
+
+        const body = document.createElement("div");
+        body.className = "section-body";
+        if (section.note) {
+          const note = document.createElement("p");
+          note.className = "note";
+          note.textContent = section.note;
+          body.appendChild(note);
+        }
+
+        section.tasks.forEach(([titleText, tags], taskIndex) => {
+          const id = idFor(sectionIndex, taskIndex);
+          const task = document.createElement("div");
+          task.className = "task";
+          task.dataset.taskId = id;
+          if (state.checks[id]) {
+            task.classList.add("done");
+          }
+
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.checked = Boolean(state.checks[id]);
+          checkbox.addEventListener("change", () => {
+            state.checks[id] = checkbox.checked;
+            task.classList.toggle("done", checkbox.checked);
+            saveState();
+          });
+
+          const content = document.createElement("div");
+          content.className = "task-text";
+          const titleLine = document.createElement("div");
+          titleLine.className = "task-title";
+          titleLine.textContent = titleText;
+
+          const tagLine = document.createElement("div");
+          tagLine.className = "tags";
+          for (const tag of tags) {
+            const tagEl = document.createElement("span");
+            tagEl.className = `tag ${tag}`;
+            tagEl.textContent = tag === "ask" ? "ask James" : tag === "audio" ? "audio/visual" : "automatable";
+            tagLine.appendChild(tagEl);
+          }
+
+          const tools = document.createElement("div");
+          tools.className = "task-tools";
+          const noteButton = document.createElement("button");
+          noteButton.type = "button";
+          noteButton.className = "mini";
+          noteButton.textContent = state.notes[id] ? "Edit note" : "Add note";
+          noteButton.addEventListener("click", () => {
+            task.classList.toggle("show-note");
+          });
+          tools.appendChild(noteButton);
+
+          const noteWrap = document.createElement("div");
+          noteWrap.className = "task-note";
+          if (state.notes[id]) {
+            task.classList.add("show-note");
+          }
+          const textarea = document.createElement("textarea");
+          textarea.placeholder = "Result, driver name, observation, screenshot/log path...";
+          textarea.value = state.notes[id] || "";
+          textarea.addEventListener("input", () => {
+            state.notes[id] = textarea.value;
+            noteButton.textContent = textarea.value ? "Edit note" : "Add note";
+            saveState();
+          });
+          noteWrap.appendChild(textarea);
+
+          content.append(titleLine, tagLine, tools, noteWrap);
+          task.append(checkbox, content);
+          body.appendChild(task);
+        });
+
+        sectionEl.append(head, body);
+        host.appendChild(sectionEl);
+      });
+    }
+
+    function updateProgress() {
+      let total = 0;
+      let complete = 0;
+      sections.forEach((section, sectionIndex) => {
+        let sectionComplete = 0;
+        section.tasks.forEach((_, taskIndex) => {
+          total += 1;
+          const done = Boolean(state.checks[idFor(sectionIndex, taskIndex)]);
+          if (done) {
+            complete += 1;
+            sectionComplete += 1;
+          }
+        });
+        const label = document.getElementById(`section-progress-${sectionIndex}`);
+        if (label) {
+          label.textContent = `${sectionComplete}/${section.tasks.length}`;
+        }
+      });
+
+      const pct = total ? Math.round((complete / total) * 100) : 0;
+      document.getElementById("overallLabel").textContent = `${complete} of ${total} tasks complete (${pct}%)`;
+      document.getElementById("overallBar").style.width = `${pct}%`;
+    }
+
+    function exportJson() {
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "ableton-link-windows-validation-results.json";
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function resetAll() {
+      if (!confirm("Reset all checklist progress and notes in this browser?")) {
+        return;
+      }
+      localStorage.removeItem(storageKey);
+      location.reload();
+    }
+
+    document.getElementById("exportButton").addEventListener("click", exportJson);
+    document.getElementById("printButton").addEventListener("click", () => window.print());
+    document.getElementById("resetButton").addEventListener("click", resetAll);
+
+    renderMeta();
+    renderSections();
+    updateProgress();
+  </script>
+</body>
+</html>
