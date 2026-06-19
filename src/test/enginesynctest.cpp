@@ -1,6 +1,13 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <QCoreApplication>
+#include <QElapsedTimer>
+#include <QFileInfo>
+#include <QProcess>
+#include <QThread>
+
+#include <array>
 #include <cmath>
 #include <memory>
 #include <string>
@@ -42,6 +49,11 @@ void expectAbletonLinkStatusControlsAreFinite() {
     EXPECT_TRUE(playing == 0.0 || playing == 1.0);
     EXPECT_GE(nextBeatTime, 0.0);
     EXPECT_GE(launchTime, 0.0);
+}
+
+void processQtEvents() {
+    QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+    QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
 }
 } // namespace
 
@@ -3447,6 +3459,182 @@ TEST_F(EngineSyncTest, LinkRepeatedQuantizedLaunchKeepsPendingLaunchValid) {
             ControlObject::get(ConfigKey("[AbletonLink]", "next_beat_time_micros")));
     EXPECT_DOUBLE_EQ(0.0, ControlObject::get(ConfigKey(m_sGroup1, "play")));
     expectAbletonLinkStatusControlsAreFinite();
+#endif
+}
+
+TEST_F(EngineSyncTest, LinkAudioCallbackChurnKeepsStateFinite) {
+#ifndef __ABLETONLINK__
+    GTEST_SKIP() << "Ableton Link support is disabled in this build";
+#else
+    ControlObject::set(ConfigKey(m_sGroup1, "sync_enabled"), 1.0);
+    ControlObject::set(ConfigKey("[AbletonLink]", "sync_enabled"), 1.0);
+    ControlObject::set(ConfigKey("[AbletonLink]", "start_stop_sync_enabled"), 1.0);
+    ProcessBuffer();
+
+    const std::array<mixxx::audio::SampleRate, 5> sampleRates{
+            mixxx::audio::SampleRate(44100),
+            mixxx::audio::SampleRate(48000),
+            mixxx::audio::SampleRate(88200),
+            mixxx::audio::SampleRate(96000),
+            mixxx::audio::SampleRate(192000),
+    };
+    const std::array<std::size_t, 7> bufferSizes{64, 128, 256, 512, 1024, 1536, 2048};
+    int64_t callbackTimeMicros = 0;
+
+    for (int i = 0; i < 700; ++i) {
+        SCOPED_TRACE(QString("iteration %1").arg(i).toStdString());
+        const auto sampleRate = sampleRates[static_cast<std::size_t>(i) % sampleRates.size()];
+        const auto bufferSize = bufferSizes[static_cast<std::size_t>(i * 3) % bufferSizes.size()];
+
+        switch (i % 14) {
+        case 0:
+            ControlObject::set(ConfigKey("[AbletonLink]", "quantized_launch"), 1.0);
+            break;
+        case 1:
+            ControlObject::set(ConfigKey("[AbletonLink]", "start_stop_sync_enabled"), 0.0);
+            break;
+        case 2:
+            ControlObject::set(ConfigKey("[AbletonLink]", "start_stop_sync_enabled"), 1.0);
+            break;
+        case 3:
+            ControlObject::set(ConfigKey("[AbletonLink]", "sync_enabled"), 0.0);
+            break;
+        case 4:
+            ControlObject::set(ConfigKey("[AbletonLink]", "sync_enabled"), 1.0);
+            break;
+        case 5:
+            ControlObject::set(ConfigKey(m_sGroup1, "play"), 1.0);
+            break;
+        case 6:
+            ControlObject::set(ConfigKey(m_sGroup1, "play"), 0.0);
+            break;
+        case 7:
+            ControlObject::set(ConfigKey(m_sGroup1, "sync_enabled"), 0.0);
+            break;
+        case 8:
+            ControlObject::set(ConfigKey(m_sGroup1, "sync_enabled"), 1.0);
+            break;
+        default:
+            break;
+        }
+
+        callbackTimeMicros += static_cast<int64_t>(
+                (bufferSize * 1000000ULL) / sampleRate.value());
+        m_pEngineSync->onCallbackStart(
+                sampleRate,
+                bufferSize,
+                std::chrono::microseconds(callbackTimeMicros));
+        m_pEngineSync->onCallbackEnd(sampleRate, bufferSize);
+        processQtEvents();
+        expectAbletonLinkStatusControlsAreFinite();
+    }
+#endif
+}
+
+TEST_F(EngineSyncTest, LinkDiscoversExternalPeersWhenConfigured) {
+#ifndef __ABLETONLINK__
+    GTEST_SKIP() << "Ableton Link support is disabled in this build";
+#else
+    const QString peerExe = qEnvironmentVariable("MIXXX_LINK_PEER_EXE");
+    if (peerExe.isEmpty()) {
+        GTEST_SKIP() << "Set MIXXX_LINK_PEER_EXE to run external Ableton Link peer validation";
+    }
+    ASSERT_TRUE(QFileInfo::exists(peerExe)) << peerExe.toStdString();
+
+    constexpr int kPeerCount = 6;
+    std::vector<std::unique_ptr<QProcess>> peers;
+    peers.reserve(kPeerCount);
+
+    auto stopPeer = [](QProcess* peer) {
+        if (!peer || peer->state() == QProcess::NotRunning) {
+            return;
+        }
+        peer->terminate();
+        if (!peer->waitForFinished(2000)) {
+            peer->kill();
+            peer->waitForFinished(5000);
+        }
+    };
+    auto stopPeers = [&peers, &stopPeer]() {
+        for (auto& peer : peers) {
+            stopPeer(peer.get());
+        }
+    };
+    auto startPeer = [&peerExe, &peers](int id) {
+        auto peer = std::make_unique<QProcess>();
+        peer->setProgram(peerExe);
+        peer->setArguments(QStringList{
+                QStringLiteral("--id=%1").arg(id),
+                QStringLiteral("--duration-ms=45000"),
+                QStringLiteral("--log-every-ms=1000"),
+                QStringLiteral("--bpm=%1").arg(120 + id),
+                QStringLiteral("--start-playing=0"),
+                QStringLiteral("--start-stop-sync=1"),
+                id == 0 ? QStringLiteral("--tempo-events=3000:128,6000:117")
+                       : QStringLiteral("--tempo-events="),
+                id == 1 ? QStringLiteral("--play-events=4000:1,7000:0,9000:1")
+                       : QStringLiteral("--play-events="),
+        });
+        peer->setStandardOutputFile(QProcess::nullDevice());
+        peer->setStandardErrorFile(QProcess::nullDevice());
+        peer->start();
+        const bool started = peer->waitForStarted(5000);
+        EXPECT_TRUE(started);
+        if (!started) {
+            return false;
+        }
+        peers.push_back(std::move(peer));
+        QThread::msleep(250);
+        return true;
+    };
+
+    for (int i = 0; i < kPeerCount; ++i) {
+        ASSERT_TRUE(startPeer(i));
+    }
+
+    ControlObject::set(ConfigKey("[AbletonLink]", "sync_enabled"), 1.0);
+    ControlObject::set(ConfigKey("[AbletonLink]", "start_stop_sync_enabled"), 1.0);
+
+    auto waitForPeerCount = [this](double target, bool atLeast, int timeoutMillis) {
+        QElapsedTimer timer;
+        timer.start();
+        while (timer.elapsed() < timeoutMillis) {
+            processQtEvents();
+            m_pEngineSync->onCallbackStart(
+                    mixxx::audio::SampleRate(48000),
+                    512,
+                    std::chrono::microseconds(timer.nsecsElapsed() / 1000));
+            m_pEngineSync->onCallbackEnd(mixxx::audio::SampleRate(48000), 512);
+            expectAbletonLinkStatusControlsAreFinite();
+
+            const double peers = ControlObject::get(ConfigKey("[AbletonLink]", "num_peers"));
+            if ((atLeast && peers >= target) || (!atLeast && peers <= target)) {
+                return true;
+            }
+            QThread::msleep(20);
+        }
+        return false;
+    };
+
+    EXPECT_TRUE(waitForPeerCount(kPeerCount, true, 10000));
+    EXPECT_GE(ControlObject::get(ConfigKey("[AbletonLink]", "num_peers")), kPeerCount);
+
+    for (int i = 0; i < kPeerCount / 2; ++i) {
+        stopPeer(peers[static_cast<std::size_t>(i)].get());
+    }
+
+    EXPECT_TRUE(waitForPeerCount(kPeerCount / 2, false, 12000));
+
+    for (int i = 0; i < kPeerCount / 2; ++i) {
+        ASSERT_TRUE(startPeer(kPeerCount + i));
+    }
+
+    EXPECT_TRUE(waitForPeerCount(kPeerCount, true, 12000));
+    EXPECT_GE(ControlObject::get(ConfigKey("[AbletonLink]", "num_peers")), kPeerCount);
+    expectAbletonLinkStatusControlsAreFinite();
+
+    ControlObject::set(ConfigKey("[AbletonLink]", "sync_enabled"), 0.0);
+    stopPeers();
 #endif
 }
 
