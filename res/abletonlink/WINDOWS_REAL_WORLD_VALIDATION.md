@@ -3,6 +3,23 @@
 Use this checklist before moving on to macOS validation. Record the result of
 each section, including driver names, device names, and anything surprising.
 
+## Optional automated audio preflight
+
+Before the manual Live/Mixxx pass, Codex can run a bounded local audio preflight
+that does not create network churn:
+
+```powershell
+.\res\abletonlink\windows-audio-preflight.ps1
+```
+
+The script plays a short generated click pattern through the default Windows
+playback path, records baseline/playback captures from each FFmpeg DirectShow
+capture device, analyzes RMS/transients, and opens a prefilled copy of the HTML
+checklist with waveform evidence. A pass means the active capture path heard the
+playback signal. A check/fail result is still useful: it records unreadable
+devices, isolated microphones, or missing loopback support so the remaining
+audio alignment checks stay explicitly operator-observed.
+
 ## 1. Clean build and launch
 
 1. Check out `codex/ableton-link-upstream`.
