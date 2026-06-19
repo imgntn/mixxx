@@ -3396,6 +3396,299 @@ TEST_F(EngineSyncTest, LinkStartStopSyncDisableKeepsLinkSessionEnabled) {
 #endif
 }
 
+TEST_F(EngineSyncTest, AbletonLinkPublicControlsRemainScriptableAndStatusReadOnly) {
+    const std::array<const char*, 10> controls{
+            "sync_enabled",
+            "enabled",
+            "start_stop_sync_enabled",
+            "quantized_launch",
+            "num_peers",
+            "bpm",
+            "beat_distance",
+            "quantum",
+            "playing",
+            "next_beat_time_micros",
+    };
+    for (const char* control : controls) {
+        SCOPED_TRACE(control);
+        EXPECT_NE(nullptr, ControlObject::getControl(ConfigKey("[AbletonLink]", control)));
+    }
+    EXPECT_NE(nullptr,
+            ControlObject::getControl(
+                    ConfigKey("[AbletonLink]", "quantized_launch_time_micros")));
+
+#ifdef __ABLETONLINK__
+    ControlObject::set(ConfigKey("[AbletonLink]", "sync_enabled"), 1.0);
+    ProcessBuffer();
+
+    EXPECT_DOUBLE_EQ(1.0, ControlObject::get(ConfigKey("[AbletonLink]", "enabled")));
+    const double publishedBpm = ControlObject::get(ConfigKey("[AbletonLink]", "bpm"));
+    ControlObject::set(ConfigKey("[AbletonLink]", "bpm"), publishedBpm + 42.0);
+    EXPECT_DOUBLE_EQ(publishedBpm, ControlObject::get(ConfigKey("[AbletonLink]", "bpm")));
+#endif
+}
+
+TEST_F(EngineSyncTest, AbletonLinkEnabledAlonePublishesFiniteIdleSession) {
+#ifndef __ABLETONLINK__
+    GTEST_SKIP() << "Ableton Link support is disabled in this build";
+#else
+    ControlObject::set(ConfigKey("[AbletonLink]", "sync_enabled"), 1.0);
+    ProcessBuffer();
+
+    EXPECT_DOUBLE_EQ(1.0, ControlObject::get(ConfigKey("[AbletonLink]", "enabled")));
+    EXPECT_DOUBLE_EQ(0.0, ControlObject::get(ConfigKey("[AbletonLink]", "num_peers")));
+    EXPECT_DOUBLE_EQ(0.0, ControlObject::get(ConfigKey("[AbletonLink]", "playing")));
+    EXPECT_GT(ControlObject::get(ConfigKey("[AbletonLink]", "next_beat_time_micros")), 0.0);
+    expectAbletonLinkStatusControlsAreFinite();
+#endif
+}
+
+TEST_F(EngineSyncTest, AbletonLinkCanBeEnabledBeforeAnyTrackIsLoaded) {
+#ifndef __ABLETONLINK__
+    GTEST_SKIP() << "Ableton Link support is disabled in this build";
+#else
+    m_pChannel1->getEngineBuffer()->ejectTrack();
+    ProcessBuffer();
+
+    ControlObject::set(ConfigKey(m_sGroup1, "sync_enabled"), 1.0);
+    ControlObject::set(ConfigKey("[AbletonLink]", "sync_enabled"), 1.0);
+    ControlObject::set(ConfigKey("[AbletonLink]", "start_stop_sync_enabled"), 1.0);
+    ProcessBuffer();
+
+    EXPECT_DOUBLE_EQ(0.0, ControlObject::get(ConfigKey(m_sGroup1, "bpm")));
+    expectAbletonLinkStatusControlsAreFinite();
+
+    m_pMixerDeck1->loadFakeTrack(false, 128.0);
+    ProcessBuffer();
+
+    EXPECT_GT(ControlObject::get(ConfigKey(m_sGroup1, "bpm")), 0.0);
+    EXPECT_TRUE(isFollower(m_sGroup1));
+    expectAbletonLinkStatusControlsAreFinite();
+#endif
+}
+
+TEST_F(EngineSyncTest, AbletonLinkTempoUpdatesStayFiniteAtUsefulBpmExtremes) {
+#ifndef __ABLETONLINK__
+    GTEST_SKIP() << "Ableton Link support is disabled in this build";
+#else
+    ControlObject::set(ConfigKey(m_sGroup1, "sync_enabled"), 1.0);
+    ControlObject::set(ConfigKey(m_sGroup1, "sync_leader"), 1.0);
+    ControlObject::set(ConfigKey("[AbletonLink]", "sync_enabled"), 1.0);
+    ProcessBuffer();
+
+    for (const double bpm : {20.0, 60.0, 120.0, 240.0, 300.0}) {
+        SCOPED_TRACE(QString("bpm %1").arg(bpm).toStdString());
+        ControlObject::set(ConfigKey(m_sGroup1, "bpm"), bpm);
+        ProcessBuffer();
+        EXPECT_GT(ControlObject::get(ConfigKey("[AbletonLink]", "bpm")), 0.0);
+        expectAbletonLinkStatusControlsAreFinite();
+    }
+#endif
+}
+
+TEST_F(EngineSyncTest, AbletonLinkPendingLaunchClearsWhenSyncedDeckIsUnloaded) {
+#ifndef __ABLETONLINK__
+    GTEST_SKIP() << "Ableton Link support is disabled in this build";
+#else
+    ControlObject::set(ConfigKey(m_sGroup1, "sync_enabled"), 1.0);
+    ControlObject::set(ConfigKey(m_sGroup1, "play"), 0.0);
+    ControlObject::set(ConfigKey("[AbletonLink]", "sync_enabled"), 1.0);
+    ControlObject::set(ConfigKey("[AbletonLink]", "start_stop_sync_enabled"), 1.0);
+    ProcessBuffer();
+
+    ControlObject::set(ConfigKey("[AbletonLink]", "quantized_launch"), 1.0);
+    EXPECT_GT(ControlObject::get(
+                      ConfigKey("[AbletonLink]", "quantized_launch_time_micros")),
+            0.0);
+
+    m_pChannel1->getEngineBuffer()->ejectTrack();
+    ProcessBuffer();
+
+    EXPECT_DOUBLE_EQ(0.0, ControlObject::get(ConfigKey(m_sGroup1, "play")));
+    EXPECT_DOUBLE_EQ(0.0,
+            ControlObject::get(
+                    ConfigKey("[AbletonLink]", "quantized_launch_time_micros")));
+
+    m_pMixerDeck1->loadFakeTrack(false, 128.0);
+    ProcessBuffer();
+
+    EXPECT_DOUBLE_EQ(0.0, ControlObject::get(ConfigKey(m_sGroup1, "play")));
+    expectAbletonLinkStatusControlsAreFinite();
+#endif
+}
+
+TEST_F(EngineSyncTest, AbletonLinkPendingLaunchClearsWhenNoDeckRemainsSynced) {
+#ifndef __ABLETONLINK__
+    GTEST_SKIP() << "Ableton Link support is disabled in this build";
+#else
+    ControlObject::set(ConfigKey(m_sGroup1, "sync_enabled"), 1.0);
+    ControlObject::set(ConfigKey(m_sGroup2, "sync_enabled"), 1.0);
+    ControlObject::set(ConfigKey(m_sGroup1, "play"), 0.0);
+    ControlObject::set(ConfigKey(m_sGroup2, "play"), 0.0);
+    ControlObject::set(ConfigKey("[AbletonLink]", "sync_enabled"), 1.0);
+    ControlObject::set(ConfigKey("[AbletonLink]", "start_stop_sync_enabled"), 1.0);
+    ProcessBuffer();
+
+    ControlObject::set(ConfigKey("[AbletonLink]", "quantized_launch"), 1.0);
+    EXPECT_GT(ControlObject::get(
+                      ConfigKey("[AbletonLink]", "quantized_launch_time_micros")),
+            0.0);
+
+    ControlObject::set(ConfigKey(m_sGroup1, "sync_enabled"), 0.0);
+    ControlObject::set(ConfigKey(m_sGroup2, "sync_enabled"), 0.0);
+    ProcessBuffer();
+
+    EXPECT_DOUBLE_EQ(0.0, ControlObject::get(ConfigKey(m_sGroup1, "play")));
+    EXPECT_DOUBLE_EQ(0.0, ControlObject::get(ConfigKey(m_sGroup2, "play")));
+    EXPECT_DOUBLE_EQ(0.0,
+            ControlObject::get(
+                    ConfigKey("[AbletonLink]", "quantized_launch_time_micros")));
+    expectAbletonLinkStatusControlsAreFinite();
+#endif
+}
+
+TEST_F(EngineSyncTest, AbletonLinkStartStopSyncDoesNotHijackManualDecks) {
+    ControlObject::set(ConfigKey(m_sGroup1, "sync_enabled"), 1.0);
+    ControlObject::set(ConfigKey(m_sGroup2, "sync_enabled"), 0.0);
+    ControlObject::set(ConfigKey(m_sGroup1, "play"), 0.0);
+    ControlObject::set(ConfigKey(m_sGroup2, "play"), 1.0);
+    ProcessBuffer();
+
+    m_pEngineSync->setLinkTransportPlaying(true);
+
+    EXPECT_DOUBLE_EQ(1.0, ControlObject::get(ConfigKey(m_sGroup1, "play")));
+    EXPECT_DOUBLE_EQ(1.0, ControlObject::get(ConfigKey(m_sGroup2, "play")));
+
+    m_pEngineSync->setLinkTransportPlaying(false);
+
+    EXPECT_DOUBLE_EQ(0.0, ControlObject::get(ConfigKey(m_sGroup1, "play")));
+    EXPECT_DOUBLE_EQ(1.0, ControlObject::get(ConfigKey(m_sGroup2, "play")));
+}
+
+TEST_F(EngineSyncTest, AbletonLinkCanJoinWhileSyncedDeckIsAlreadyPlaying) {
+#ifndef __ABLETONLINK__
+    GTEST_SKIP() << "Ableton Link support is disabled in this build";
+#else
+    ControlObject::set(ConfigKey(m_sGroup1, "sync_enabled"), 1.0);
+    ControlObject::set(ConfigKey(m_sGroup1, "play"), 1.0);
+    ProcessBuffer();
+
+    const double deckBpmBeforeLink = ControlObject::get(ConfigKey(m_sGroup1, "bpm"));
+    ControlObject::set(ConfigKey("[AbletonLink]", "sync_enabled"), 1.0);
+    ControlObject::set(ConfigKey("[AbletonLink]", "start_stop_sync_enabled"), 1.0);
+    ProcessBuffer();
+
+    EXPECT_DOUBLE_EQ(1.0, ControlObject::get(ConfigKey(m_sGroup1, "play")));
+    EXPECT_DOUBLE_EQ(1.0, ControlObject::get(ConfigKey("[AbletonLink]", "playing")));
+    EXPECT_GT(ControlObject::get(ConfigKey("[AbletonLink]", "next_beat_time_micros")), 0.0);
+    EXPECT_NEAR(deckBpmBeforeLink, ControlObject::get(ConfigKey(m_sGroup1, "bpm")), 0.001);
+    expectAbletonLinkStatusControlsAreFinite();
+#endif
+}
+
+TEST_F(EngineSyncTest, AbletonLinkLeaveRejoinKeepsDeckAndControlsStable) {
+#ifndef __ABLETONLINK__
+    GTEST_SKIP() << "Ableton Link support is disabled in this build";
+#else
+    ControlObject::set(ConfigKey(m_sGroup1, "sync_enabled"), 1.0);
+    ControlObject::set(ConfigKey(m_sGroup1, "play"), 1.0);
+    ControlObject::set(ConfigKey("[AbletonLink]", "start_stop_sync_enabled"), 1.0);
+
+    for (int i = 0; i < 20; ++i) {
+        SCOPED_TRACE(QString("iteration %1").arg(i).toStdString());
+        ControlObject::set(ConfigKey("[AbletonLink]", "sync_enabled"), 1.0);
+        ProcessBuffer();
+        EXPECT_DOUBLE_EQ(1.0, ControlObject::get(ConfigKey("[AbletonLink]", "enabled")));
+        EXPECT_DOUBLE_EQ(1.0, ControlObject::get(ConfigKey(m_sGroup1, "play")));
+        expectAbletonLinkStatusControlsAreFinite();
+
+        ControlObject::set(ConfigKey("[AbletonLink]", "sync_enabled"), 0.0);
+        ProcessBuffer();
+        EXPECT_DOUBLE_EQ(0.0, ControlObject::get(ConfigKey("[AbletonLink]", "enabled")));
+        EXPECT_DOUBLE_EQ(0.0, ControlObject::get(ConfigKey("[AbletonLink]", "playing")));
+        EXPECT_DOUBLE_EQ(0.0,
+                ControlObject::get(ConfigKey("[AbletonLink]", "next_beat_time_micros")));
+        EXPECT_DOUBLE_EQ(1.0, ControlObject::get(ConfigKey(m_sGroup1, "play")));
+        expectAbletonLinkStatusControlsAreFinite();
+    }
+#endif
+}
+
+TEST_F(EngineSyncTest, AbletonLinkDeckSyncCanBeEnabledBeforeLink) {
+#ifndef __ABLETONLINK__
+    GTEST_SKIP() << "Ableton Link support is disabled in this build";
+#else
+    ControlObject::set(ConfigKey(m_sGroup1, "sync_enabled"), 1.0);
+    ControlObject::set(ConfigKey(m_sGroup1, "play"), 1.0);
+    ProcessBuffer();
+
+    EXPECT_TRUE(ControlObject::get(ConfigKey(m_sGroup1, "sync_enabled")) > 0.0);
+    EXPECT_DOUBLE_EQ(1.0, ControlObject::get(ConfigKey(m_sGroup1, "play")));
+
+    ControlObject::set(ConfigKey("[AbletonLink]", "sync_enabled"), 1.0);
+    ControlObject::set(ConfigKey("[AbletonLink]", "start_stop_sync_enabled"), 1.0);
+    ProcessBuffer();
+
+    EXPECT_DOUBLE_EQ(1.0, ControlObject::get(ConfigKey("[AbletonLink]", "enabled")));
+    EXPECT_DOUBLE_EQ(1.0, ControlObject::get(ConfigKey("[AbletonLink]", "playing")));
+    EXPECT_TRUE(ControlObject::get(ConfigKey(m_sGroup1, "sync_enabled")) > 0.0);
+    expectAbletonLinkStatusControlsAreFinite();
+#endif
+}
+
+TEST_F(EngineSyncTest, AbletonLinkRapidTempoLeaderChangesStayFinite) {
+#ifndef __ABLETONLINK__
+    GTEST_SKIP() << "Ableton Link support is disabled in this build";
+#else
+    ControlObject::set(ConfigKey(m_sGroup1, "sync_enabled"), 1.0);
+    ControlObject::set(ConfigKey(m_sGroup2, "sync_enabled"), 1.0);
+    ControlObject::set(ConfigKey("[AbletonLink]", "sync_enabled"), 1.0);
+    ProcessBuffer();
+
+    for (int i = 0; i < 80; ++i) {
+        SCOPED_TRACE(QString("iteration %1").arg(i).toStdString());
+        const QString& group = (i % 2 == 0) ? m_sGroup1 : m_sGroup2;
+        const double bpm = 90.0 + static_cast<double>((i * 17) % 90);
+        ControlObject::set(ConfigKey(group, "sync_leader"), 1.0);
+        ControlObject::set(ConfigKey(group, "bpm"), bpm);
+        ProcessBuffer();
+
+        EXPECT_GT(ControlObject::get(ConfigKey("[AbletonLink]", "bpm")), 0.0);
+        EXPECT_TRUE(ControlObject::get(ConfigKey(group, "sync_enabled")) > 0.0);
+        expectAbletonLinkStatusControlsAreFinite();
+    }
+#endif
+}
+
+TEST_F(EngineSyncTest, AbletonLinkTemporaryDeckManipulationDoesNotCorruptState) {
+#ifndef __ABLETONLINK__
+    GTEST_SKIP() << "Ableton Link support is disabled in this build";
+#else
+    ControlObject::set(ConfigKey(m_sGroup1, "sync_enabled"), 1.0);
+    ControlObject::set(ConfigKey(m_sGroup1, "play"), 1.0);
+    ControlObject::set(ConfigKey("[AbletonLink]", "sync_enabled"), 1.0);
+    ProcessBuffer();
+
+    for (int i = 0; i < 30; ++i) {
+        SCOPED_TRACE(QString("iteration %1").arg(i).toStdString());
+        ControlObject::set(ConfigKey(m_sGroup1, "rate_temp_up"), 1.0);
+        ControlObject::set(ConfigKey(m_sGroup1, "jog"), 0.25);
+        ControlObject::set(ConfigKey(m_sGroup1, "wheel"), -0.15);
+        ProcessBuffer();
+        expectAbletonLinkStatusControlsAreFinite();
+
+        ControlObject::set(ConfigKey(m_sGroup1, "rate_temp_up"), 0.0);
+        ControlObject::set(ConfigKey(m_sGroup1, "jog"), 0.0);
+        ControlObject::set(ConfigKey(m_sGroup1, "wheel"), 0.0);
+        ProcessBuffer();
+
+        EXPECT_DOUBLE_EQ(1.0, ControlObject::get(ConfigKey(m_sGroup1, "play")));
+        EXPECT_TRUE(ControlObject::get(ConfigKey(m_sGroup1, "sync_enabled")) > 0.0);
+        expectAbletonLinkStatusControlsAreFinite();
+    }
+#endif
+}
+
 TEST_F(EngineSyncTest, LinkTransportIgnoresUnsyncedDecks) {
     ControlObject::set(ConfigKey(m_sGroup1, "sync_enabled"), 0.0);
     ControlObject::set(ConfigKey(m_sGroup2, "sync_enabled"), 0.0);
