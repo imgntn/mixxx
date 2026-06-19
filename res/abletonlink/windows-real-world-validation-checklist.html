@@ -290,6 +290,45 @@
       font-size: 0.9rem;
     }
 
+    .evidence {
+      display: grid;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .evidence-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 8px;
+    }
+
+    .evidence-item {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      overflow: hidden;
+      background: #fbfcfd;
+    }
+
+    .evidence-item img {
+      display: block;
+      width: 100%;
+      max-height: 180px;
+      object-fit: contain;
+      background: #eef2f6;
+    }
+
+    .evidence-caption {
+      padding: 6px 8px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      overflow-wrap: anywhere;
+    }
+
+    input[type="file"] {
+      max-width: 100%;
+      font-size: 0.82rem;
+    }
+
     .task-tools {
       display: flex;
       gap: 6px;
@@ -513,13 +552,53 @@
     ];
 
     let state = loadState();
+    if (window.__VALIDATION_PREFILL__) {
+      state = mergeState(
+        state,
+        window.__VALIDATION_PREFILL__,
+        Boolean(window.__VALIDATION_PREFILL_FORCE__)
+      );
+      localStorage.setItem(storageKey, JSON.stringify(state));
+    }
 
     function loadState() {
       try {
-        return JSON.parse(localStorage.getItem(storageKey)) || { checks: {}, notes: {}, meta: {} };
+        return JSON.parse(localStorage.getItem(storageKey)) || { checks: {}, notes: {}, meta: {}, evidence: {} };
       } catch (_) {
-        return { checks: {}, notes: {}, meta: {} };
+        return { checks: {}, notes: {}, meta: {}, evidence: {} };
       }
+    }
+
+    function mergeMap(existing, incoming, forceIncoming) {
+      const merged = { ...(incoming || {}) };
+      if (forceIncoming) {
+        return { ...((existing || {})), ...merged };
+      }
+      for (const [key, value] of Object.entries(existing || {})) {
+        if (value !== undefined && value !== null && value !== "") {
+          merged[key] = value;
+        }
+      }
+      return merged;
+    }
+
+    function mergeState(existing, incoming, forceIncoming) {
+      return {
+        checks: { ...((incoming && incoming.checks) || {}), ...((existing && existing.checks) || {}) },
+        notes: mergeMap((existing && existing.notes) || {}, (incoming && incoming.notes) || {}, forceIncoming),
+        meta: mergeMap((existing && existing.meta) || {}, (incoming && incoming.meta) || {}, forceIncoming),
+        evidence: mergeEvidence((existing && existing.evidence) || {}, (incoming && incoming.evidence) || {})
+      };
+    }
+
+    function mergeEvidence(existing, incoming) {
+      const merged = { ...(incoming || {}) };
+      for (const [key, value] of Object.entries(existing || {})) {
+        if (Array.isArray(value) && value.length) {
+          merged[key] = value;
+        }
+      }
+      return merged;
     }
 
     function saveState() {
@@ -632,7 +711,24 @@
           });
           noteWrap.appendChild(textarea);
 
-          content.append(titleLine, tagLine, tools, noteWrap);
+          const evidence = document.createElement("div");
+          evidence.className = "evidence";
+          const evidenceGrid = document.createElement("div");
+          evidenceGrid.className = "evidence-grid";
+          evidence.appendChild(evidenceGrid);
+          const fileInput = document.createElement("input");
+          fileInput.type = "file";
+          fileInput.accept = "image/png,image/jpeg,image/webp";
+          fileInput.multiple = true;
+          fileInput.title = "Attach screenshot or crop evidence";
+          fileInput.addEventListener("change", () => {
+            addEvidenceFiles(id, Array.from(fileInput.files || []), evidenceGrid);
+            fileInput.value = "";
+          });
+          evidence.appendChild(fileInput);
+          renderEvidence(id, evidenceGrid);
+
+          content.append(titleLine, tagLine, tools, noteWrap, evidence);
           task.append(checkbox, content);
           body.appendChild(task);
         });
@@ -640,6 +736,56 @@
         sectionEl.append(head, body);
         host.appendChild(sectionEl);
       });
+    }
+
+    function renderEvidence(taskId, host) {
+      host.textContent = "";
+      const items = state.evidence && state.evidence[taskId] ? state.evidence[taskId] : [];
+      for (let index = 0; index < items.length; index += 1) {
+        const item = items[index];
+        const wrapper = document.createElement("div");
+        wrapper.className = "evidence-item";
+        const img = document.createElement("img");
+        img.src = item.src;
+        img.alt = item.label || "Visual evidence";
+        const caption = document.createElement("div");
+        caption.className = "evidence-caption";
+        caption.textContent = item.label || item.src;
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "mini";
+        remove.textContent = "Remove";
+        remove.addEventListener("click", () => {
+          state.evidence[taskId].splice(index, 1);
+          saveState();
+          renderEvidence(taskId, host);
+        });
+        caption.appendChild(document.createTextNode(" "));
+        caption.appendChild(remove);
+        wrapper.append(img, caption);
+        host.appendChild(wrapper);
+      }
+    }
+
+    function addEvidenceFiles(taskId, files, host) {
+      if (!state.evidence) {
+        state.evidence = {};
+      }
+      if (!state.evidence[taskId]) {
+        state.evidence[taskId] = [];
+      }
+      for (const file of files) {
+        const reader = new FileReader();
+        reader.addEventListener("load", () => {
+          state.evidence[taskId].push({
+            label: file.name,
+            src: reader.result
+          });
+          saveState();
+          renderEvidence(taskId, host);
+        });
+        reader.readAsDataURL(file);
+      }
     }
 
     function updateProgress() {
