@@ -108,6 +108,37 @@ testing are documented in:
 res/abletonlink/MANUAL_VERIFICATION.md
 ```
 
+Developer/reviewer notes and an upstream PR validation packet are documented in:
+
+```text
+res/abletonlink/DEVELOPER_NOTES.md
+res/abletonlink/UPSTREAM_PR_PACKET.md
+```
+
+## External peer test
+
+Most Link tests are self-contained. The optional external-peer test requires a
+local Link peer executable:
+
+```powershell
+$env:MIXXX_LINK_PEER_EXE = "C:\path\to\mixxx-link-peer.exe"
+build\x64__abletonlink\mixxx-test.exe --gtest_filter=EngineSyncTest.LinkDiscoversExternalPeersWhenConfigured
+```
+
+If `MIXXX_LINK_PEER_EXE` is not set, that test skips. Other Link tests still
+run normally.
+
+## Current known limitations
+
+- Mixxx currently uses a one-beat Link quantum. This supports tempo, beat phase,
+  and next-beat Launch, but does not claim bar/phrase launch.
+- Link peer discovery depends on local firewall, VPN, multicast, and network
+  adapter behavior.
+- On Windows, Ableton Live may hide its own Link button with DirectX/MME. Mixxx
+  should still expose Link controls whenever Mixxx is built with Link support.
+- Automated audio capture evidence depends on local routing. ASIO paths may
+  bypass Windows loopback capture.
+
 ## Test environment notes
 
 The Ableton Link code does not require QML. Some existing Mixxx controller
