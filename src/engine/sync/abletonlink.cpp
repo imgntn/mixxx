@@ -316,6 +316,9 @@ void AbletonLink::requestQuantizedLaunch() {
     if (!isEnabled() || !isStartStopSyncEnabled()) {
         return;
     }
+    if (!m_pEngineSync->hasSynchronizedDeck()) {
+        return;
+    }
 
 #ifdef __ABLETONLINK__
     auto sessionState = m_pLink->captureAppSessionState();

@@ -648,6 +648,20 @@ bool EngineSync::isSynchronizedDeckPlaying() const {
     return false;
 }
 
+bool EngineSync::hasSynchronizedDeck() const {
+    for (const Syncable* pSyncable : m_syncables) {
+        if (!pSyncable->isSynchronized()) {
+            continue;
+        }
+
+        EngineChannel* pChannel = pSyncable->getChannel();
+        if (pChannel && pChannel->isActive() && pChannel->isPrimaryDeck()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void EngineSync::setLinkTransportPlaying(bool playing) {
     for (Syncable* pSyncable : std::as_const(m_syncables)) {
         if (!pSyncable->isSynchronized()) {

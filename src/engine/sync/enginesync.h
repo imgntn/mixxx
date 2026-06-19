@@ -73,6 +73,10 @@ class EngineSync : public SyncableListener {
     void addSyncableDeck(Syncable* pSyncable);
     EngineChannel* getLeaderChannel() const;
     bool isSynchronizedDeckPlaying() const;
+    /// Returns true if at least one primary deck is currently participating in
+    /// sync. Used by Link transport actions that only make sense with a Mixxx
+    /// deck target.
+    bool hasSynchronizedDeck() const;
     void setLinkTransportPlaying(bool playing);
     void onCallbackStart(mixxx::audio::SampleRate sampleRate, std::size_t bufferSize);
     void onCallbackStart(mixxx::audio::SampleRate sampleRate,
