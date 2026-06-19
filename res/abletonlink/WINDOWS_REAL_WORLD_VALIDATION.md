@@ -13,12 +13,21 @@ that does not create network churn:
 ```
 
 The script plays a short generated click pattern through the default Windows
-playback path, records baseline/playback captures from each FFmpeg DirectShow
-capture device, analyzes RMS/transients, and opens a prefilled copy of the HTML
-checklist with waveform evidence. A pass means the active capture path heard the
-playback signal. A check/fail result is still useful: it records unreadable
-devices, isolated microphones, or missing loopback support so the remaining
-audio alignment checks stay explicitly operator-observed.
+playback path, records baseline/playback captures, analyzes RMS/transients, and
+opens a prefilled copy of the HTML checklist with waveform evidence. If the
+Python `soundcard` package is installed, the script first uses WASAPI loopback
+from the default Windows playback device:
+
+```powershell
+python -m pip install --user soundcard
+```
+
+It also falls back to each FFmpeg DirectShow capture device, which is useful for
+documenting physical microphones and unreadable virtual devices. A pass means
+the active capture path heard the playback signal. A check/fail result is still
+useful: it records isolated microphones, unreadable devices, or missing loopback
+support so the remaining audio alignment checks stay explicitly
+operator-observed.
 
 ## 1. Clean build and launch
 

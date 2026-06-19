@@ -195,6 +195,111 @@ function ConvertTo-SafeFileName {
     return $safe
 }
 
+function Test-PythonSoundcard {
+    & python -c "import soundcard" *> $null
+    return ($LASTEXITCODE -eq 0)
+}
+
+function Invoke-PythonChecked {
+    param([string[]]$Arguments)
+    & python @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "python $($Arguments -join ' ') failed with exit code $LASTEXITCODE"
+    }
+}
+
+function Invoke-WasapiLoopbackPreflight {
+    param(
+        [string]$LoopbackDir,
+        [string]$ClickPath,
+        [string]$Generator,
+        [int]$BaselineSeconds,
+        [int]$PlaybackSeconds,
+        [int]$PlaybackVolume
+    )
+
+    New-Item -ItemType Directory -Force -Path $LoopbackDir | Out-Null
+    $baselinePath = Join-Path $LoopbackDir "baseline-loopback.wav"
+    $playbackPath = Join-Path $LoopbackDir "playback-loopback.wav"
+    $baselineMeta = Join-Path $LoopbackDir "baseline-loopback-metadata.json"
+    $playbackMeta = Join-Path $LoopbackDir "playback-loopback-metadata.json"
+    $resultJson = Join-Path $LoopbackDir "audio-preflight-results.json"
+    $waveformPng = Join-Path $LoopbackDir "audio-preflight-waveforms.png"
+    $deviceLog = Join-Path $LoopbackDir "device.log"
+
+    "Testing WASAPI loopback capture" | Set-Content -LiteralPath $deviceLog -Encoding UTF8
+
+    try {
+        Invoke-PythonChecked -Arguments @(
+            $Generator,
+            "record-loopback",
+            "--output", $baselinePath,
+            "--seconds", "$BaselineSeconds",
+            "--metadata-json", $baselineMeta
+        )
+        Invoke-PythonChecked -Arguments @(
+            $Generator,
+            "record-loopback",
+            "--output", $playbackPath,
+            "--seconds", "$PlaybackSeconds",
+            "--play-file", $ClickPath,
+            "--volume", "$PlaybackVolume",
+            "--metadata-json", $playbackMeta
+        )
+
+        $metadata = Get-Content -LiteralPath $playbackMeta -Raw | ConvertFrom-Json
+        $deviceName = "WASAPI loopback: $($metadata.speaker_name)"
+
+        Invoke-PythonChecked -Arguments @(
+            $Generator,
+            "analyze",
+            "--baseline", $baselinePath,
+            "--playback", $playbackPath,
+            "--output-json", $resultJson,
+            "--output-png", $waveformPng,
+            "--capture-device", $deviceName,
+            "--output-dir", $LoopbackDir
+        )
+
+        $analysis = Get-Content -LiteralPath $resultJson -Raw | ConvertFrom-Json
+        $status = if ($analysis.signal_detected -and $analysis.transients_detected) {
+            "signal-and-transients-detected"
+        } elseif ($analysis.signal_detected) {
+            "signal-detected"
+        } elseif ($analysis.transients_detected) {
+            "transients-detected"
+        } else {
+            "captured-no-playback-signal"
+        }
+        "Status: $status" | Add-Content -LiteralPath $deviceLog -Encoding UTF8
+
+        return [pscustomobject]@{
+            Device = $deviceName
+            Status = $status
+            Error = ""
+            Analysis = $analysis
+            OutputDir = $LoopbackDir
+            ResultJson = $resultJson
+            WaveformPng = $waveformPng
+            Backend = "WASAPI loopback"
+        }
+    } catch {
+        $message = $_.Exception.Message
+        "Status: failed" | Add-Content -LiteralPath $deviceLog -Encoding UTF8
+        "Error: $message" | Add-Content -LiteralPath $deviceLog -Encoding UTF8
+        return [pscustomobject]@{
+            Device = "WASAPI loopback"
+            Status = "failed"
+            Error = $message
+            Analysis = $null
+            OutputDir = $LoopbackDir
+            ResultJson = $resultJson
+            WaveformPng = $waveformPng
+            Backend = "WASAPI loopback"
+        }
+    }
+}
+
 function Invoke-AudioCapturePreflight {
     param(
         [string]$Device,
@@ -272,6 +377,7 @@ function Invoke-AudioCapturePreflight {
             OutputDir = $DeviceDir
             ResultJson = $resultJson
             WaveformPng = $waveformPng
+            Backend = "DirectShow"
         }
     } catch {
         $message = $_.Exception.Message
@@ -285,6 +391,7 @@ function Invoke-AudioCapturePreflight {
             OutputDir = $DeviceDir
             ResultJson = $resultJson
             WaveformPng = $waveformPng
+            Backend = "DirectShow"
         }
     }
 }
@@ -295,9 +402,6 @@ $outputDir = Join-Path $OutputRoot $timestamp
 New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
 
 $devices = @(Get-DShowAudioDevices)
-if ($devices.Count -eq 0) {
-    throw "No DirectShow audio capture devices were detected by ffmpeg."
-}
 if (-not [string]::IsNullOrWhiteSpace($CaptureDevice) -and $devices -notcontains $CaptureDevice) {
     throw "Capture device '$CaptureDevice' was not found. Detected devices: $($devices -join ', ')"
 }
@@ -311,12 +415,28 @@ $sessionHtml = Join-Path $outputDir "audio-preflight-checklist-$timestamp.html"
 $generator = Join-Path $repo "res\abletonlink\windows_audio_preflight_analyze.py"
 & python $generator generate-click --output $clickPath --seconds $PlaybackSeconds
 
-"Audio capture devices detected:" | Tee-Object -FilePath (Join-Path $outputDir "audio-preflight.log")
+$wasapiLoopbackAvailable = Test-PythonSoundcard
+"WASAPI loopback available through Python soundcard: $wasapiLoopbackAvailable" | Tee-Object -FilePath (Join-Path $outputDir "audio-preflight.log")
+"Audio capture devices detected:" | Tee-Object -FilePath (Join-Path $outputDir "audio-preflight.log") -Append
 $devices | Tee-Object -FilePath (Join-Path $outputDir "audio-preflight.log") -Append
 "Testing capture devices:" | Tee-Object -FilePath (Join-Path $outputDir "audio-preflight.log") -Append
 $devicesToTest | Tee-Object -FilePath (Join-Path $outputDir "audio-preflight.log") -Append
 
 $runs = @()
+if ($wasapiLoopbackAvailable) {
+    $loopbackRun = Invoke-WasapiLoopbackPreflight `
+        -LoopbackDir (Join-Path $outputDir "WASAPI_loopback") `
+        -ClickPath $clickPath `
+        -Generator $generator `
+        -BaselineSeconds $BaselineSeconds `
+        -PlaybackSeconds $PlaybackSeconds `
+        -PlaybackVolume $PlaybackVolume
+    $runs += $loopbackRun
+    "$($loopbackRun.Device): $($loopbackRun.Status)" | Tee-Object -FilePath (Join-Path $outputDir "audio-preflight.log") -Append
+    if (-not [string]::IsNullOrWhiteSpace($loopbackRun.Error)) {
+        "  $($loopbackRun.Error)" | Tee-Object -FilePath (Join-Path $outputDir "audio-preflight.log") -Append
+    }
+}
 foreach ($device in $devicesToTest) {
     $deviceDir = Join-Path $outputDir (ConvertTo-SafeFileName -Value $device)
     $run = Invoke-AudioCapturePreflight `
@@ -347,7 +467,7 @@ $summary = [pscustomobject]@{
     output_dir = $outputDir
     tested_devices = $devicesToTest
     ffmpeg_capture_backend = "DirectShow"
-    wasapi_loopback_available = $false
+    wasapi_loopback_available = $wasapiLoopbackAvailable
     playback_volume = $PlaybackVolume
     baseline_seconds = $BaselineSeconds
     playback_seconds = $PlaybackSeconds
@@ -356,6 +476,7 @@ $summary = [pscustomobject]@{
         [pscustomobject]@{
             device = $_.Device
             status = $_.Status
+            backend = $_.Backend
             error = $_.Error
             output_dir = $_.OutputDir
             result_json = if ($_.Analysis) { $_.ResultJson } else { "" }
@@ -377,7 +498,7 @@ $state = @{
         "s1-t9" = @()
     }
     meta = @{
-        audioInterface = "FFmpeg capture backend: DirectShow`nWASAPI loopback in this FFmpeg build: no`nDetected capture devices:`n$($devices -join "`n")"
+        audioInterface = "WASAPI loopback through Python soundcard: $wasapiLoopbackAvailable`nFFmpeg capture backend: DirectShow`nWASAPI loopback in this FFmpeg build: no`nDetected capture devices:`n$($devices -join "`n")"
     }
 }
 
@@ -430,7 +551,7 @@ Estimated dropout windows: $($bestAnalysis.dropout_windows)"
 "No tested capture device produced readable audio files."
 })
 
-This verifies captured audio activity when the active Windows capture path can hear the default playback path. This FFmpeg build does not provide WASAPI loopback, so a quiet or isolated microphone can make automated signal detection inconclusive even when playback is audible.
+This verifies captured audio activity when the active Windows capture path can hear the default playback path. Python soundcard WASAPI loopback available: $wasapiLoopbackAvailable. FFmpeg DirectShow capture remains a fallback for physical or virtual recording devices.
 "@
 
 $state.notes["s0-t5"] = $note

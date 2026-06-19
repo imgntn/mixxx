@@ -1,7 +1,10 @@
 import argparse
 import json
 import math
+import os
 from pathlib import Path
+import subprocess
+import time
 
 import cv2
 import numpy as np
@@ -148,6 +151,88 @@ def generate_click(output: Path, seconds: int, sample_rate: int = 48000) -> None
     sf.write(str(output), data, sample_rate, subtype="PCM_16")
 
 
+def hidden_subprocess_kwargs() -> dict:
+    if os.name != "nt":
+        return {}
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startupinfo.wShowWindow = 0
+    return {
+        "startupinfo": startupinfo,
+        "creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    }
+
+
+def record_loopback(args) -> None:
+    try:
+        import soundcard as sc
+    except ImportError as exc:
+        raise RuntimeError(
+            "The Python 'soundcard' package is required for WASAPI loopback. "
+            "Install it with: python -m pip install --user soundcard"
+        ) from exc
+
+    speaker = None
+    speakers = sc.all_speakers()
+    if args.speaker_id:
+        for candidate in speakers:
+            if candidate.id == args.speaker_id or candidate.name == args.speaker_id:
+                speaker = candidate
+                break
+        if speaker is None:
+            names = ", ".join(s.name for s in speakers)
+            raise RuntimeError(f"Speaker '{args.speaker_id}' not found. Available: {names}")
+    else:
+        speaker = sc.default_speaker()
+
+    loopback = sc.get_microphone(id=speaker.id, include_loopback=True)
+    proc = None
+    sample_rate = int(args.sample_rate)
+    output = Path(args.output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+
+    with loopback.recorder(samplerate=sample_rate, channels=2) as recorder:
+        if args.play_file:
+            time.sleep(float(args.pre_roll_seconds))
+            proc = subprocess.Popen(
+                [
+                    "ffplay",
+                    "-hide_banner",
+                    "-nodisp",
+                    "-autoexit",
+                    "-volume",
+                    str(args.volume),
+                    args.play_file,
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                **hidden_subprocess_kwargs(),
+            )
+        data = recorder.record(numframes=int(sample_rate * float(args.seconds)))
+
+    if proc is not None:
+        proc.wait(timeout=max(10.0, float(args.seconds) + 5.0))
+        if proc.returncode != 0:
+            raise RuntimeError(f"ffplay exited with code {proc.returncode}")
+
+    sf.write(str(output), data, sample_rate, subtype="PCM_16")
+    if args.metadata_json:
+        Path(args.metadata_json).write_text(
+            json.dumps(
+                {
+                    "speaker_name": speaker.name,
+                    "speaker_id": speaker.id,
+                    "sample_rate": sample_rate,
+                    "seconds": float(args.seconds),
+                    "channels": 2,
+                    "play_file": args.play_file,
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+
 def analyze(args) -> None:
     baseline, baseline_rate = load_mono(Path(args.baseline))
     playback, playback_rate = load_mono(Path(args.playback))
@@ -198,6 +283,16 @@ def main() -> None:
     gen.add_argument("--output", required=True)
     gen.add_argument("--seconds", type=int, default=8)
 
+    loopback = sub.add_parser("record-loopback")
+    loopback.add_argument("--output", required=True)
+    loopback.add_argument("--seconds", type=float, default=5.0)
+    loopback.add_argument("--sample-rate", type=int, default=48000)
+    loopback.add_argument("--speaker-id", default="")
+    loopback.add_argument("--play-file", default="")
+    loopback.add_argument("--volume", type=int, default=35)
+    loopback.add_argument("--pre-roll-seconds", type=float, default=0.35)
+    loopback.add_argument("--metadata-json", default="")
+
     ana = sub.add_parser("analyze")
     ana.add_argument("--baseline", required=True)
     ana.add_argument("--playback", required=True)
@@ -209,6 +304,8 @@ def main() -> None:
     args = parser.parse_args()
     if args.command == "generate-click":
         generate_click(Path(args.output), args.seconds)
+    elif args.command == "record-loopback":
+        record_loopback(args)
     elif args.command == "analyze":
         analyze(args)
 
