@@ -50,13 +50,57 @@
         </property>
        </widget>
       </item>
+      <item>
+       <widget class="QCheckBox" name="CheckBoxLinkAudio">
+        <property name="toolTip">
+         <string>Enable Ableton LinkAudio channel discovery when this build includes Ableton Link 4.0 or newer.</string>
+        </property>
+        <property name="text">
+         <string>Enable LinkAudio</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayoutLaunchQuantum">
+        <item>
+         <widget class="QLabel" name="LabelLaunchQuantum">
+          <property name="text">
+           <string>Launch quantum</string>
+          </property>
+          <property name="buddy">
+           <cstring>ComboBoxLaunchQuantum</cstring>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="ComboBoxLaunchQuantum">
+          <property name="toolTip">
+           <string>Choose the Link beat grid used by Quantized Launch. Beat starts on the next beat; larger values wait for the next matching Link quantum boundary.</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="horizontalSpacerLaunchQuantum">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
      </layout>
     </widget>
    </item>
    <item>
     <widget class="QGroupBox" name="GroupBoxStatus">
      <property name="title">
-      <string>Session Status</string>
+      <string>Diagnostics</string>
      </property>
      <layout class="QGridLayout" name="gridLayoutStatus">
       <item row="0" column="0">
@@ -132,7 +176,7 @@
       <item row="5" column="0">
        <widget class="QLabel" name="LabelQuantum">
         <property name="text">
-         <string>Quantum</string>
+         <string>Beat sync quantum</string>
         </property>
        </widget>
       </item>
@@ -144,20 +188,118 @@
        </widget>
       </item>
       <item row="6" column="0">
-       <widget class="QLabel" name="LabelPlaying">
+       <widget class="QLabel" name="LabelLaunchQuantumStatus">
         <property name="text">
-         <string>Playing state</string>
+         <string>Launch quantum</string>
         </property>
        </widget>
       </item>
       <item row="6" column="1">
+       <widget class="QLabel" name="LabelLaunchQuantumValue">
+        <property name="text">
+         <string notr="true">n/a</string>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="0">
+       <widget class="QLabel" name="LabelPlaying">
+        <property name="text">
+         <string>Transport state</string>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="1">
        <widget class="QLabel" name="LabelPlayingValue">
         <property name="text">
          <string notr="true">n/a</string>
         </property>
        </widget>
       </item>
-      <item row="0" column="2" rowspan="7">
+      <item row="8" column="0">
+       <widget class="QLabel" name="LabelLinkAudioAvailable">
+        <property name="text">
+         <string>LinkAudio support</string>
+        </property>
+       </widget>
+      </item>
+      <item row="8" column="1">
+       <widget class="QLabel" name="LabelLinkAudioAvailableValue">
+        <property name="text">
+         <string notr="true">n/a</string>
+        </property>
+       </widget>
+      </item>
+      <item row="9" column="0">
+       <widget class="QLabel" name="LabelLinkAudioChannels">
+        <property name="text">
+         <string>LinkAudio channels</string>
+        </property>
+       </widget>
+      </item>
+      <item row="9" column="1">
+       <widget class="QLabel" name="LabelLinkAudioChannelsValue">
+        <property name="text">
+         <string notr="true">n/a</string>
+        </property>
+       </widget>
+      </item>
+      <item row="10" column="0">
+       <widget class="QLabel" name="LabelOutputLatency">
+        <property name="text">
+         <string>Output latency compensation</string>
+        </property>
+       </widget>
+      </item>
+      <item row="10" column="1">
+       <widget class="QLabel" name="LabelOutputLatencyValue">
+        <property name="text">
+         <string notr="true">n/a</string>
+        </property>
+       </widget>
+      </item>
+      <item row="11" column="0">
+       <widget class="QLabel" name="LabelHostTimeFilter">
+        <property name="text">
+         <string>Host time filter</string>
+        </property>
+       </widget>
+      </item>
+      <item row="11" column="1">
+       <widget class="QLabel" name="LabelHostTimeFilterValue">
+        <property name="text">
+         <string notr="true">n/a</string>
+        </property>
+       </widget>
+      </item>
+      <item row="12" column="0">
+       <widget class="QLabel" name="LabelNextBeatEta">
+        <property name="text">
+         <string>Next beat ETA</string>
+        </property>
+       </widget>
+      </item>
+      <item row="12" column="1">
+       <widget class="QLabel" name="LabelNextBeatEtaValue">
+        <property name="text">
+         <string notr="true">n/a</string>
+        </property>
+       </widget>
+      </item>
+      <item row="13" column="0">
+       <widget class="QLabel" name="LabelQueuedLaunchEta">
+        <property name="text">
+         <string>Queued launch ETA</string>
+        </property>
+       </widget>
+      </item>
+      <item row="13" column="1">
+       <widget class="QLabel" name="LabelQueuedLaunchEtaValue">
+        <property name="text">
+         <string notr="true">n/a</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="2" rowspan="14">
        <spacer name="horizontalSpacerStatus">
         <property name="orientation">
          <enum>Qt::Horizontal</enum>

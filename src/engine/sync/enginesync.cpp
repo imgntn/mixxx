@@ -681,7 +681,7 @@ void EngineSync::setLinkTransportPlaying(bool playing) {
 
 void EngineSync::onCallbackStart(mixxx::audio::SampleRate sampleRate, std::size_t bufferSize) {
     m_pInternalClock->onCallbackStart(sampleRate, bufferSize);
-    m_pAbletonLink->onCallbackStart();
+    m_pAbletonLink->onCallbackStart(sampleRate, bufferSize);
 }
 
 void EngineSync::onCallbackStart(mixxx::audio::SampleRate sampleRate,
@@ -694,6 +694,13 @@ void EngineSync::onCallbackStart(mixxx::audio::SampleRate sampleRate,
 void EngineSync::onCallbackEnd(mixxx::audio::SampleRate sampleRate, std::size_t bufferSize) {
     m_pInternalClock->onCallbackEnd(sampleRate, bufferSize);
     m_pAbletonLink->onCallbackEnd(sampleRate, bufferSize);
+}
+
+void EngineSync::publishLinkAudioMainOutput(
+        const CSAMPLE* pBuffer,
+        std::size_t bufferSize,
+        mixxx::audio::SampleRate sampleRate) {
+    m_pAbletonLink->publishLinkAudioMainOutput(pBuffer, bufferSize, sampleRate);
 }
 
 EngineChannel* EngineSync::getLeaderChannel() const {

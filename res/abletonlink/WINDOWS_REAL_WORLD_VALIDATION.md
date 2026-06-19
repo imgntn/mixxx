@@ -64,10 +64,13 @@ operator-observed.
 
 1. Stop synced Mixxx decks.
 2. Keep Mixxx Link and Start/Stop Sync enabled.
-3. Press Mixxx `Launch`.
-4. Confirm the deck starts on the next Link beat.
-5. Disable Link while Launch is pending.
-6. Confirm pending launch clears and does not fire later.
+3. Set Mixxx launch quantum to `1`.
+4. Press Mixxx `Launch`.
+5. Confirm the deck starts on the next Link beat.
+6. Repeat with launch quantum `4` and confirm the deck waits for the next
+   matching Link quantum boundary.
+7. Disable Link while Launch is pending.
+8. Confirm pending launch clears and does not fire later.
 
 ## 5. Ableton Live with ASIO4ALL
 
@@ -216,14 +219,14 @@ Ask James for audio/UI observation:
 
 1. Do synced Mixxx decks start and stop with Live transport?
 2. Does Live follow Mixxx transport when Start/Stop Sync is enabled?
-3. Does `Launch` start the Mixxx deck on the next Link beat?
+3. Does `Launch` start the Mixxx deck on the selected Link launch quantum?
 4. When Link is disabled while Launch is pending, does the pending launch
    visibly clear and not fire later?
 
 Pass condition:
 
 1. Transport sync works in both expected directions.
-2. Quantized Launch starts on the next Link beat.
+2. Quantized Launch starts on the selected Link launch quantum.
 3. Pending launch cancellation is visible and stable.
 
 ### Phase D: ASIO4ALL

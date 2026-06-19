@@ -54,18 +54,27 @@ Default skins expose Link status in the main toolbar or mixer area with:
 - the current peer count
 - the current Link session BPM
 - a `Start/Stop` Sync toggle
-- a `Launch` button for starting synced Mixxx decks on the next Link beat
+- a `Launch` button for starting synced Mixxx decks on the selected Link launch
+  quantum
 
 Useful controls for scripts, mappings, tests, and automation:
 
 - `[AbletonLink],sync_enabled`
 - `[AbletonLink],enabled`
 - `[AbletonLink],start_stop_sync_enabled`
+- `[AbletonLink],link_audio_enabled`
+- `[AbletonLink],link_audio_available`
+- `[AbletonLink],link_audio_num_channels`
 - `[AbletonLink],quantized_launch`
+- `[AbletonLink],launch_quantum`
 - `[AbletonLink],num_peers`
 - `[AbletonLink],bpm`
 - `[AbletonLink],beat_distance`
 - `[AbletonLink],quantum`
 - `[AbletonLink],playing`
+- `[AbletonLink],output_latency_micros`
+- `[AbletonLink],host_time_filter_enabled`
 - `[AbletonLink],next_beat_time_micros`
+- `[AbletonLink],next_beat_eta_micros`
 - `[AbletonLink],quantized_launch_time_micros`
+- `[AbletonLink],quantized_launch_eta_micros`

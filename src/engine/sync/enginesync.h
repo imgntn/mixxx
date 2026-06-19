@@ -2,8 +2,10 @@
 
 #include <gtest/gtest_prod.h>
 
+#include "audio/types.h"
 #include "engine/sync/syncable.h"
 #include "preferences/usersettings.h"
+#include "util/types.h"
 
 class InternalClock;
 class AbletonLink;
@@ -83,6 +85,10 @@ class EngineSync : public SyncableListener {
             std::size_t bufferSize,
             std::chrono::microseconds absTimeWhenPrevOutputBufferReachesDac);
     void onCallbackEnd(mixxx::audio::SampleRate sampleRate, std::size_t bufferSize);
+    void publishLinkAudioMainOutput(
+            const CSAMPLE* pBuffer,
+            std::size_t bufferSize,
+            mixxx::audio::SampleRate sampleRate);
 
   private:
     /// Iterate over decks, and based on sync and play status, pick a new Leader, or return the

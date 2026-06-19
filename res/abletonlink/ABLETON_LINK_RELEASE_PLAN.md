@@ -167,5 +167,6 @@ supported platforms.
    message and PR description.
 3. Include test evidence in the PR description.
 4. Include manual Windows Ableton Live results in the PR description.
-5. State known limitations clearly, including one-beat quantum and
-   environment-dependent network discovery behavior.
+5. State known limitations clearly, including the split between one-beat deck
+   sync quantum, selectable launch quantum, and environment-dependent network
+   discovery behavior.

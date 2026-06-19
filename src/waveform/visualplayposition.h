@@ -4,6 +4,8 @@
 #include <QMap>
 #include <QTime>
 #include <atomic>
+#include <chrono>
+#include <cstdint>
 
 #include "control/controlvalue.h"
 #include "engine/slipmodestate.h"
@@ -83,6 +85,7 @@ class VisualPlayPosition : public QObject {
 
     // This is called by SoundDevicePortAudio just after the callback starts.
     static void setCallbackEntryToDacSecs(double secs, const PerformanceTimer& time);
+    static std::chrono::microseconds callbackEntryToDac();
 
     void setInvalid() {
         m_valid.store(false);
@@ -105,6 +108,7 @@ class VisualPlayPosition : public QObject {
     static QMap<QString, QWeakPointer<VisualPlayPosition>> m_listVisualPlayPosition;
     // Time info from the Sound device, updated just after audio callback is called
     static double m_dCallbackEntryToDacSecs;
+    static std::atomic<int64_t> m_callbackEntryToDacMicros;
     // Time stamp for m_timeInfo in main CPU time
     static PerformanceTimer m_timeInfoTime;
 };

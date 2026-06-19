@@ -9,6 +9,7 @@
 QMap<QString, QWeakPointer<VisualPlayPosition>> VisualPlayPosition::m_listVisualPlayPosition;
 PerformanceTimer VisualPlayPosition::m_timeInfoTime;
 double VisualPlayPosition::m_dCallbackEntryToDacSecs = 0;
+std::atomic<int64_t> VisualPlayPosition::m_callbackEntryToDacMicros{0};
 
 VisualPlayPosition::VisualPlayPosition(const QString& key)
         : m_valid{false},
@@ -218,4 +219,13 @@ void VisualPlayPosition::setCallbackEntryToDacSecs(double secs, const Performanc
     // later correction
     m_timeInfoTime = time;
     m_dCallbackEntryToDacSecs = secs;
+    m_callbackEntryToDacMicros.store(
+            static_cast<int64_t>(secs * 1000000.0),
+            std::memory_order_relaxed);
+}
+
+//static
+std::chrono::microseconds VisualPlayPosition::callbackEntryToDac() {
+    return std::chrono::microseconds(
+            m_callbackEntryToDacMicros.load(std::memory_order_relaxed));
 }

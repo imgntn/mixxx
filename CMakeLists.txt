@@ -3244,15 +3244,19 @@ if(ABLETONLINK)
     FetchContent_Declare(
       AbletonLink
       GIT_REPOSITORY https://github.com/Ableton/link.git
-      GIT_TAG Link-3.0.6
+      GIT_TAG Link-4.0
     )
     FetchContent_MakeAvailable(AbletonLink)
 
     include(${abletonlink_SOURCE_DIR}/AbletonLinkConfig.cmake)
+    # AbletonLinkConfig.cmake sets CMAKE_CXX_STANDARD for its examples and
+    # support targets. Keep Mixxx targets on the project-wide standard.
+    set(CMAKE_CXX_STANDARD 20)
     target_link_libraries(mixxx-lib PUBLIC Ableton::Link)
     target_include_directories(
       mixxx-lib
       SYSTEM
+      BEFORE
       PUBLIC ${abletonlink_SOURCE_DIR}/include/
     )
   else()

@@ -4,22 +4,46 @@
 #include <QPointer>
 #include <QTimer>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
+#include <type_traits>
 
 #include "control/controlobject.h"
 #include "engine/sync/enginesync.h"
 #include "moc_abletonlink.cpp"
 #include "preferences/usersettings.h"
+#include "util/defs.h"
+#include "util/sample.h"
+#include "waveform/visualplayposition.h"
 
 namespace {
 constexpr double kDefaultLinkTempo = 120.0;
+constexpr double kBeatSyncQuantum = 1.0;
+constexpr int kDefaultLaunchQuantumBeats = 1;
+constexpr std::array<int, 4> kSupportedLaunchQuantumBeats{1, 2, 4, 8};
 constexpr int kNoPendingStartStopSyncState = -1;
 constexpr int kPendingStop = 0;
 constexpr int kPendingStart = 1;
 #ifdef __ABLETONLINK__
+constexpr char kLinkAudioPeerName[] = "Mixxx";
+#ifdef MIXXX_ABLETON_LINK_AUDIO
+constexpr char kLinkAudioMainOutputName[] = "Mixxx Main";
+#endif
 thread_local const AbletonLink* s_pAudioCallbackLink = nullptr;
 #endif
+
+int normalizeLaunchQuantumBeats(double requested, int fallback) {
+    if (!std::isfinite(requested)) {
+        return fallback;
+    }
+    for (const auto quantum : kSupportedLaunchQuantumBeats) {
+        if (std::abs(requested - static_cast<double>(quantum)) < 1e-9) {
+            return quantum;
+        }
+    }
+    return fallback;
+}
 } // anonymous namespace
 
 AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
@@ -28,6 +52,9 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
           m_syncMode(SyncMode::None),
           m_linkEnabled(false),
           m_startStopSyncEnabled(false),
+          m_linkAudioEnabled(false),
+          m_numLinkAudioChannels(0),
+          m_launchQuantumBeats(kDefaultLaunchQuantumBeats),
           m_pendingStartStopSyncState(kNoPendingStartStopSyncState),
           m_numPeers(0),
           m_startStopSyncGeneration(0),
@@ -40,7 +67,22 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
           m_scheduledStartStopSyncTime(0),
           m_scheduledStartStopSyncGeneration(0),
 #ifdef __ABLETONLINK__
+#ifdef MIXXX_ABLETON_LINK_AUDIO
+          m_pLink(std::make_unique<MixxxAbletonLink>(
+                  kDefaultLinkTempo,
+                  kLinkAudioPeerName)),
+#else
           m_pLink(std::make_unique<MixxxAbletonLink>(kDefaultLinkTempo)),
+#endif
+          m_hostTimeFilter(),
+          m_audioCallbackSampleTime(0.0),
+          m_audioSessionState(),
+#ifdef MIXXX_ABLETON_LINK_AUDIO
+          m_pLinkAudioMainSink(std::make_unique<ableton::LinkAudioSink>(
+                  *m_pLink,
+                  kLinkAudioMainOutputName,
+                  kMaxEngineSamples)),
+#endif
 #endif
           m_pLinkButton(std::make_unique<ControlPushButton>(
                   ConfigKey(group, "sync_enabled"),
@@ -48,21 +90,44 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
           m_pStartStopSyncButton(std::make_unique<ControlPushButton>(
                   ConfigKey(group, "start_stop_sync_enabled"),
                   true)),
+          m_pLinkAudioButton(std::make_unique<ControlPushButton>(
+                  ConfigKey(group, "link_audio_enabled"),
+                  true)),
           m_pQuantizedLaunchButton(std::make_unique<ControlPushButton>(
                   ConfigKey(group, "quantized_launch"))),
           m_pEnabled(std::make_unique<ControlObject>(ConfigKey(group, "enabled"))),
+          m_pLinkAudioAvailable(std::make_unique<ControlObject>(
+                  ConfigKey(group, "link_audio_available"))),
+          m_pLinkAudioNumChannels(std::make_unique<ControlObject>(
+                  ConfigKey(group, "link_audio_num_channels"))),
           m_pNumLinkPeers(std::make_unique<ControlObject>(ConfigKey(group, "num_peers"))),
           m_pBpm(std::make_unique<ControlObject>(ConfigKey(group, "bpm"))),
           m_pBeatDistance(std::make_unique<ControlObject>(ConfigKey(group, "beat_distance"))),
           m_pQuantum(std::make_unique<ControlObject>(ConfigKey(group, "quantum"))),
+          m_pLaunchQuantum(std::make_unique<ControlObject>(
+                  ConfigKey(group, "launch_quantum"),
+                  true,
+                  false,
+                  true,
+                  kDefaultLaunchQuantumBeats)),
           m_pPlaying(std::make_unique<ControlObject>(ConfigKey(group, "playing"))),
+          m_pOutputLatency(std::make_unique<ControlObject>(
+                  ConfigKey(group, "output_latency_micros"))),
+          m_pHostTimeFilterEnabled(std::make_unique<ControlObject>(
+                  ConfigKey(group, "host_time_filter_enabled"))),
           m_pNextBeatTime(std::make_unique<ControlObject>(ConfigKey(group, "next_beat_time_micros"))),
+          m_pNextBeatEta(std::make_unique<ControlObject>(
+                  ConfigKey(group, "next_beat_eta_micros"))),
           m_pQuantizedLaunchTime(
-                  std::make_unique<ControlObject>(ConfigKey(group, "quantized_launch_time_micros"))) {
+                  std::make_unique<ControlObject>(ConfigKey(group, "quantized_launch_time_micros"))),
+          m_pQuantizedLaunchEta(std::make_unique<ControlObject>(
+                  ConfigKey(group, "quantized_launch_eta_micros"))) {
     m_pLinkButton->setButtonMode(mixxx::control::ButtonMode::Toggle);
     m_pLinkButton->setStates(2);
     m_pStartStopSyncButton->setButtonMode(mixxx::control::ButtonMode::Toggle);
     m_pStartStopSyncButton->setStates(2);
+    m_pLinkAudioButton->setButtonMode(mixxx::control::ButtonMode::Toggle);
+    m_pLinkAudioButton->setStates(2);
     m_pQuantizedLaunchButton->setButtonMode(mixxx::control::ButtonMode::Trigger);
 
     connect(m_pLinkButton.get(),
@@ -73,10 +138,18 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
             &ControlObject::valueChanged,
             this,
             &AbletonLink::slotControlStartStopSyncEnabled);
+    connect(m_pLinkAudioButton.get(),
+            &ControlObject::valueChanged,
+            this,
+            &AbletonLink::slotControlLinkAudioEnabled);
     connect(m_pQuantizedLaunchButton.get(),
             &ControlObject::valueChanged,
             this,
             &AbletonLink::slotControlQuantizedLaunch);
+    m_pLaunchQuantum->connectValueChangeRequest(
+            this,
+            &AbletonLink::slotControlLaunchQuantum,
+            Qt::DirectConnection);
     m_startStopSyncTimer.setSingleShot(true);
     connect(&m_startStopSyncTimer,
             &QTimer::timeout,
@@ -84,13 +157,19 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
             &AbletonLink::applyScheduledStartStopSync);
 
     m_pEnabled->setReadOnly();
+    m_pLinkAudioAvailable->setReadOnly();
+    m_pLinkAudioNumChannels->setReadOnly();
     m_pNumLinkPeers->setReadOnly();
     m_pBpm->setReadOnly();
     m_pBeatDistance->setReadOnly();
     m_pQuantum->setReadOnly();
     m_pPlaying->setReadOnly();
+    m_pOutputLatency->setReadOnly();
+    m_pHostTimeFilterEnabled->setReadOnly();
     m_pNextBeatTime->setReadOnly();
+    m_pNextBeatEta->setReadOnly();
     m_pQuantizedLaunchTime->setReadOnly();
+    m_pQuantizedLaunchEta->setReadOnly();
 
 #ifdef __ABLETONLINK__
     // The callback is invoked on a Link - managed thread.
@@ -108,6 +187,34 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
                 },
                 Qt::QueuedConnection);
     });
+    m_pLink->setTempoCallback([pThis](double bpm) {
+        if (!pThis) {
+            return;
+        }
+        QMetaObject::invokeMethod(
+                pThis.data(),
+                [pThis, bpm]() {
+                    if (pThis) {
+                        pThis->publishCallbackTempo(bpm);
+                    }
+                },
+                Qt::QueuedConnection);
+    });
+#ifdef MIXXX_ABLETON_LINK_AUDIO
+    m_pLink->setChannelsChangedCallback([pThis]() {
+        if (!pThis) {
+            return;
+        }
+        QMetaObject::invokeMethod(
+                pThis.data(),
+                [pThis]() {
+                    if (pThis) {
+                        pThis->updateLinkAudioChannels();
+                    }
+                },
+                Qt::QueuedConnection);
+    });
+#endif
     m_pLink->setStartStopCallback([pThis](bool playing) {
         if (!pThis) {
             return;
@@ -131,11 +238,17 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
 #endif
 
     setNumPeers(0);
+    updateLinkAudioChannels();
     m_pQuantum->forceSet(getQuantum());
+    slotControlLaunchQuantum(m_pLaunchQuantum->get());
+    setLinkAudioEnabled(m_pLinkAudioButton->get() > 0);
     setStartStopSyncEnabled(m_pStartStopSyncButton->get() > 0);
     setEnabled(m_pLinkButton->get() > 0);
     publishSessionState(mixxx::Bpm(kDefaultLinkTempo), 0.0, false);
+    m_pOutputLatency->forceSet(0.0);
+    m_pHostTimeFilterEnabled->forceSet(0.0);
     m_pNextBeatTime->forceSet(0.0);
+    m_pNextBeatEta->forceSet(0.0);
     clearQuantizedLaunchTime();
 }
 
@@ -143,6 +256,10 @@ AbletonLink::~AbletonLink() {
 #ifdef __ABLETONLINK__
     // Stop Link activity and remove callbacks before destroying ControlObjects.
     m_pLink->setNumPeersCallback([](std::size_t) {});
+    m_pLink->setTempoCallback([](double) {});
+#ifdef MIXXX_ABLETON_LINK_AUDIO
+    m_pLink->setChannelsChangedCallback([]() {});
+#endif
     m_pLink->setStartStopCallback([](bool) {});
     m_pLink->enable(false);
 
@@ -161,10 +278,22 @@ void AbletonLink::slotControlStartStopSyncEnabled(double value) {
     setStartStopSyncEnabled(value > 0);
 }
 
+void AbletonLink::slotControlLinkAudioEnabled(double value) {
+    setLinkAudioEnabled(value > 0);
+}
+
 void AbletonLink::slotControlQuantizedLaunch(double value) {
     if (value > 0) {
         requestQuantizedLaunch();
     }
+}
+
+void AbletonLink::slotControlLaunchQuantum(double value) {
+    const auto quantum = normalizeLaunchQuantumBeats(
+            value,
+            m_launchQuantumBeats.load(std::memory_order_relaxed));
+    m_launchQuantumBeats.store(quantum, std::memory_order_relaxed);
+    m_pLaunchQuantum->forceSet(static_cast<double>(quantum));
 }
 
 void AbletonLink::slotLinkStartStopChanged(
@@ -270,6 +399,7 @@ void AbletonLink::setEnabled(bool enabled) {
         cancelPendingStartStopSync();
         publishSessionState(mixxx::Bpm(kDefaultLinkTempo), 0.0, false);
         m_pNextBeatTime->forceSet(0.0);
+        m_pNextBeatEta->forceSet(0.0);
     }
 #ifdef __ABLETONLINK__
     m_pLink->enable(effectiveEnabled);
@@ -300,6 +430,29 @@ void AbletonLink::setStartStopSyncEnabled(bool enabled) {
     }
 }
 
+bool AbletonLink::isLinkAudioAvailable() const {
+#ifdef MIXXX_ABLETON_LINK_AUDIO
+    return true;
+#else
+    return false;
+#endif
+}
+
+bool AbletonLink::isLinkAudioEnabled() const {
+    return m_linkAudioEnabled.load(std::memory_order_relaxed);
+}
+
+void AbletonLink::setLinkAudioEnabled(bool enabled) {
+    const bool effectiveEnabled = enabled && isLinkAudioAvailable();
+    m_linkAudioEnabled.store(effectiveEnabled, std::memory_order_relaxed);
+#ifdef MIXXX_ABLETON_LINK_AUDIO
+    m_pLink->enableLinkAudio(effectiveEnabled);
+#endif
+    m_pLinkAudioButton->forceSet(effectiveEnabled ? 1.0 : 0.0);
+    m_pLinkAudioAvailable->forceSet(isLinkAudioAvailable() ? 1.0 : 0.0);
+    updateLinkAudioChannels();
+}
+
 void AbletonLink::requestStartStopSync(bool playing) {
     if (!isEnabled() || !isStartStopSyncEnabled()) {
         return;
@@ -323,8 +476,8 @@ void AbletonLink::requestQuantizedLaunch() {
 #ifdef __ABLETONLINK__
     auto sessionState = m_pLink->captureAppSessionState();
     const auto now = m_pLink->clock().micros();
-    const auto launchTime = timeAtNextBeat(sessionState, now);
-    const auto quantum = getQuantum();
+    const auto quantum = getLaunchQuantum();
+    const auto launchTime = timeAtNextQuantum(sessionState, now, quantum);
     const auto launchBeat = sessionState.beatAtTime(launchTime, quantum);
 
     if (sessionState.isPlaying()) {
@@ -340,7 +493,12 @@ void AbletonLink::requestQuantizedLaunch() {
 
     m_quantizedLaunchTime = launchTime;
     m_pQuantizedLaunchTime->forceSet(static_cast<double>(launchTime.count()));
-    m_pNextBeatTime->forceSet(static_cast<double>(launchTime.count()));
+    m_pQuantizedLaunchEta->forceSet(static_cast<double>(
+            std::max<int64_t>(0, (launchTime - now).count())));
+    const auto nextBeatTime = timeAtNextQuantum(sessionState, now, getQuantum());
+    m_pNextBeatTime->forceSet(static_cast<double>(nextBeatTime.count()));
+    m_pNextBeatEta->forceSet(static_cast<double>(
+            std::max<int64_t>(0, (nextBeatTime - now).count())));
     slotLinkStartStopChanged(
             true,
             launchTime,
@@ -353,9 +511,11 @@ std::size_t AbletonLink::numPeers() const {
 }
 
 double AbletonLink::getQuantum() const {
-    // Mixxx doesn't know about bars/time-signatures yet. A one-beat quantum
-    // exposes useful tempo/beat phase without pretending to support bar phase.
-    return 1.0;
+    return kBeatSyncQuantum;
+}
+
+double AbletonLink::getLaunchQuantum() const {
+    return static_cast<double>(m_launchQuantumBeats.load(std::memory_order_relaxed));
 }
 
 mixxx::Bpm AbletonLink::getBpm() const {
@@ -450,24 +610,53 @@ void AbletonLink::updateInstantaneousBpm(mixxx::Bpm) {
 /// the engine sync about any changes in tempo and beat distance.
 void AbletonLink::onCallbackStart() {
 #ifdef __ABLETONLINK__
-    onCallbackStart(m_pLink->clock().micros());
+    const auto outputLatency = VisualPlayPosition::callbackEntryToDac();
+    onCallbackStart(m_pLink->clock().micros() + outputLatency, outputLatency);
 #endif
 }
 
-void AbletonLink::onCallbackStart(std::chrono::microseconds absTimeWhenPrevOutputBufferReachesDac) {
+void AbletonLink::onCallbackStart(
+        mixxx::audio::SampleRate sampleRate,
+        std::size_t bufferSize) {
+    Q_UNUSED(sampleRate)
+#ifdef __ABLETONLINK__
+    // Mixxx engine buffers are interleaved stereo samples. Link's host-time
+    // filter sample time follows audio frame count, as in the Link examples.
+    constexpr std::size_t kNumChannels = 2;
+    const auto outputLatency = VisualPlayPosition::callbackEntryToDac();
+    const auto filteredCallbackTime =
+            m_hostTimeFilter.sampleTimeToHostTime(m_audioCallbackSampleTime);
+    m_audioCallbackSampleTime += static_cast<double>(bufferSize / kNumChannels);
+    onCallbackStart(
+            filteredCallbackTime + outputLatency,
+            outputLatency,
+            true);
+#else
+    Q_UNUSED(bufferSize)
+#endif
+}
+
+void AbletonLink::onCallbackStart(
+        std::chrono::microseconds absTimeWhenPrevOutputBufferReachesDac,
+        std::chrono::microseconds outputLatency,
+        bool hostTimeFilterEnabled) {
     m_absTimeWhenPrevOutputBufferReachesDacMicros.store(
             absTimeWhenPrevOutputBufferReachesDac.count(),
             std::memory_order_relaxed);
+    m_pOutputLatency->forceSet(static_cast<double>(outputLatency.count()));
+    m_pHostTimeFilterEnabled->forceSet(hostTimeFilterEnabled ? 1.0 : 0.0);
 
     if (!isEnabled()) {
         publishSessionState(mixxx::Bpm(kDefaultLinkTempo), 0.0, false);
         m_pNextBeatTime->forceSet(0.0);
+        m_pNextBeatEta->forceSet(0.0);
         return;
     }
 
 #ifdef __ABLETONLINK__
     s_pAudioCallbackLink = this;
     m_audioSessionState = m_pLink->captureAudioSessionState();
+    setNumPeers(m_pLink->numPeers());
     const int pendingStartStopSyncState = m_pendingStartStopSyncState.exchange(
             kNoPendingStartStopSyncState,
             std::memory_order_acq_rel);
@@ -490,8 +679,23 @@ void AbletonLink::onCallbackStart(std::chrono::microseconds absTimeWhenPrevOutpu
             absTimeWhenPrevOutputBufferReachesDac,
             getQuantum());
     publishSessionState(tempo, beatDistance, m_audioSessionState->isPlaying());
-    m_pNextBeatTime->forceSet(static_cast<double>(
-            timeAtNextBeat(*m_audioSessionState, absTimeWhenPrevOutputBufferReachesDac).count()));
+    const auto nextBeatTime = timeAtNextQuantum(
+            *m_audioSessionState,
+            absTimeWhenPrevOutputBufferReachesDac,
+            getQuantum());
+    m_pNextBeatTime->forceSet(static_cast<double>(nextBeatTime.count()));
+    m_pNextBeatEta->forceSet(static_cast<double>(
+            std::max<int64_t>(
+                    0,
+                    (nextBeatTime - absTimeWhenPrevOutputBufferReachesDac).count())));
+    if (m_quantizedLaunchTime.count() > 0) {
+        m_pQuantizedLaunchEta->forceSet(static_cast<double>(
+                std::max<int64_t>(
+                        0,
+                        (m_quantizedLaunchTime -
+                                absTimeWhenPrevOutputBufferReachesDac)
+                                .count())));
+    }
     m_pEngineSync->notifyBeatDistanceChanged(this, beatDistance);
 #else
     Q_UNUSED(absTimeWhenPrevOutputBufferReachesDac);
@@ -502,16 +706,73 @@ void AbletonLink::onCallbackEnd(int sampleRate, size_t bufferSize) {
     Q_UNUSED(sampleRate)
     Q_UNUSED(bufferSize)
 #ifdef __ABLETONLINK__
-    m_audioSessionState.reset();
     if (s_pAudioCallbackLink == this) {
         s_pAudioCallbackLink = nullptr;
     }
 #endif
 }
 
+void AbletonLink::publishLinkAudioMainOutput(
+        const CSAMPLE* pBuffer,
+        std::size_t bufferSize,
+        mixxx::audio::SampleRate sampleRate) {
+#if defined(__ABLETONLINK__) && defined(MIXXX_ABLETON_LINK_AUDIO)
+    if (!isEnabled() || !isLinkAudioEnabled() || !pBuffer || !sampleRate.isValid()) {
+        return;
+    }
+    constexpr std::size_t kNumChannels = 2;
+    if (bufferSize == 0 || bufferSize % kNumChannels != 0 || !m_pLinkAudioMainSink) {
+        return;
+    }
+
+    m_pLinkAudioMainSink->requestMaxNumSamples(bufferSize);
+    ableton::LinkAudioSink::BufferHandle buffer(*m_pLinkAudioMainSink);
+    if (!buffer || buffer.maxNumSamples < bufferSize) {
+        return;
+    }
+
+    static_assert(std::is_same_v<SAMPLE, int16_t>);
+    SampleUtil::convertFloat32ToS16(
+            reinterpret_cast<SAMPLE*>(buffer.samples),
+            pBuffer,
+            static_cast<SINT>(bufferSize));
+
+    const auto sessionState = m_audioSessionState
+            ? *m_audioSessionState
+            : m_pLink->captureAudioSessionState();
+    const auto callbackTime = currentCallbackTime();
+    const auto beatsAtBufferBegin = sessionState.beatAtTime(
+            callbackTime,
+            getQuantum());
+    buffer.commit(
+            sessionState,
+            beatsAtBufferBegin,
+            getQuantum(),
+            bufferSize / kNumChannels,
+            kNumChannels,
+            sampleRate.value());
+#else
+    Q_UNUSED(pBuffer)
+    Q_UNUSED(bufferSize)
+    Q_UNUSED(sampleRate)
+#endif
+}
+
 void AbletonLink::setNumPeers(std::size_t numPeers) {
     m_numPeers.store(numPeers, std::memory_order_relaxed);
     m_pNumLinkPeers->forceSet(static_cast<double>(numPeers));
+}
+
+void AbletonLink::updateLinkAudioChannels() {
+#ifdef MIXXX_ABLETON_LINK_AUDIO
+    const auto channels = m_pLink->channels();
+    m_numLinkAudioChannels.store(channels.size(), std::memory_order_relaxed);
+    m_pLinkAudioNumChannels->forceSet(static_cast<double>(channels.size()));
+#else
+    m_numLinkAudioChannels.store(0, std::memory_order_relaxed);
+    m_pLinkAudioNumChannels->forceSet(0.0);
+#endif
+    m_pLinkAudioAvailable->forceSet(isLinkAudioAvailable() ? 1.0 : 0.0);
 }
 
 void AbletonLink::publishSessionState(mixxx::Bpm bpm, double beatDistance, bool playing) {
@@ -521,6 +782,13 @@ void AbletonLink::publishSessionState(mixxx::Bpm bpm, double beatDistance, bool 
     m_pBeatDistance->forceSet(beatDistance);
     m_pQuantum->forceSet(getQuantum());
     m_pPlaying->forceSet(playing ? 1.0 : 0.0);
+}
+
+void AbletonLink::publishCallbackTempo(double bpm) {
+    const mixxx::Bpm tempo(bpm);
+    if (tempo.isValid()) {
+        m_pBpm->forceSet(tempo.value());
+    }
 }
 
 void AbletonLink::applyScheduledStartStopSync() {
@@ -560,13 +828,14 @@ void AbletonLink::cancelPendingStartStopSync() {
 void AbletonLink::clearQuantizedLaunchTime() {
     m_quantizedLaunchTime = std::chrono::microseconds(0);
     m_pQuantizedLaunchTime->forceSet(0.0);
+    m_pQuantizedLaunchEta->forceSet(0.0);
 }
 
 #ifdef __ABLETONLINK__
-std::chrono::microseconds AbletonLink::timeAtNextBeat(
+std::chrono::microseconds AbletonLink::timeAtNextQuantum(
         const MixxxAbletonLinkSessionState& sessionState,
-        std::chrono::microseconds time) const {
-    const auto quantum = getQuantum();
+        std::chrono::microseconds time,
+        double quantum) const {
     const auto currentBeat = sessionState.beatAtTime(time, quantum);
     const auto currentPhase = sessionState.phaseAtTime(time, quantum);
     const auto nextBeat = currentBeat - currentPhase + quantum;

@@ -28,13 +28,16 @@ cmake -DABLETONLINK=ON -DFETCH_ABLETONLINK=OFF ..
 
 In that mode, CMake expects a system package exposing `Ableton::Link` through
 `find_package(AbletonLink)`.
+When FetchContent is used, Mixxx fetches Ableton Link 4.0 so LinkAudio headers
+are available. Existing system packages may still be older; in that case Mixxx
+builds without LinkAudio and reports `link_audio_available` as `0`.
 
 ## User interface
 
 The Sync preferences page contains Ableton Link settings and live session
 status. It shows whether Link support is available in the current build, whether
 Link is effectively running, the number of peers, session BPM, beat phase,
-quantum, and the session playing state.
+beat quantum, selected launch quantum, and the session playing state.
 
 Default skins also expose compact Link controls in the main toolbar or mixer
 area:
@@ -43,7 +46,8 @@ area:
 - peer count: shows the number of other Link peers.
 - BPM: shows the current Link session tempo.
 - `Start/Stop`: enables or disables Link Start/Stop Sync.
-- `Launch`: starts Link transport and synced Mixxx decks on the next Link beat.
+- `Launch`: starts Link transport and synced Mixxx decks on the selected Link
+  launch quantum.
 
 ## Controls
 
@@ -57,19 +61,49 @@ Public controls in the `[AbletonLink]` group:
 - `sync_enabled`: requested Link session enable state.
 - `enabled`: effective Link engine state.
 - `start_stop_sync_enabled`: requested Link Start/Stop Sync state.
+- `link_audio_enabled`: requested LinkAudio enable state. This is honored only
+  when Mixxx is built with Ableton Link 4.0 or newer headers.
+- `link_audio_available`: effective build support for LinkAudio.
+- `link_audio_num_channels`: number of discovered LinkAudio channels.
 - `quantized_launch`: momentary command to start Link transport and synced Mixxx
-  decks on the next Link beat. Link and Start/Stop Sync must be enabled.
+  decks on the selected launch quantum. Link and Start/Stop Sync must be
+  enabled.
+- `launch_quantum`: requested launch grid in beats. Supported values are `1`,
+  `2`, `4`, and `8`.
 - `num_peers`: current number of other Link peers.
 - `bpm`: current Link session tempo.
 - `beat_distance`: current Link beat position.
-- `quantum`: Link phase quantum.
+- `quantum`: Link phase quantum used for Mixxx beat sync. This remains `1.0`
+  beat so normal deck sync receives beat-phase values in the expected range.
 - `playing`: Link session playing state.
+- `output_latency_micros`: measured callback-to-output latency used to
+  compensate Link timing.
+- `host_time_filter_enabled`: `1` when Link timing is using Link's host-time
+  filter for audio callback timestamps.
 - `next_beat_time_micros`: Ableton Link clock time of the next beat.
+- `next_beat_eta_micros`: time until the next Link beat.
 - `quantized_launch_time_micros`: scheduled quantized launch time, or `0` when
   no launch is pending.
+- `quantized_launch_eta_micros`: time until the scheduled quantized launch, or
+  `0` when no launch is pending.
 
-`sync_enabled`, `start_stop_sync_enabled`, and `quantized_launch` are writable.
-The status controls are read-only observations of the active Link session.
+`sync_enabled`, `start_stop_sync_enabled`, `quantized_launch`, and
+`launch_quantum` are writable. The status controls are read-only observations of
+the active Link session.
+
+Mixxx uses Ableton Link's default platform clock and filters callback-entry
+timestamps with Link's `HostTimeFilter` before adding measured output latency.
+This follows Link's guidance for audio APIs that do not provide an exact system
+timestamp for the output buffer.
+
+Ableton Link 4.0 adds LinkAudio for peer audio-channel sharing. When Mixxx is
+built with headers that provide `LinkAudio.hpp`, it uses `ableton::LinkAudio`,
+can enable/disable LinkAudio, publishes the final stereo main output as a
+LinkAudio sink named `Mixxx Main`, and publishes discovered LinkAudio channel
+count. When built with older Link headers, the LinkAudio controls remain
+available but report unavailable/disabled. Receiving remote LinkAudio streams
+into the Mixxx mixer is intentionally not enabled by default because it needs
+explicit user routing, gain, monitoring, and feedback-loop design.
 
 ## Recommended manual test
 
@@ -81,6 +115,8 @@ The status controls are read-only observations of the active Link session.
 6. Load a track with a reliable beatgrid.
 7. Enable deck Sync and press play.
 8. Change the session tempo from the other Link application.
+9. For release validation, record Mixxx and LinkHut click-like output through
+   loopback and confirm beat onsets align within 3 ms.
 
 On Windows, Mixxx should expose its Ableton Link controls whenever it was built
 with Ableton Link support. If Ableton Live does not show its own Link button,
@@ -92,7 +128,8 @@ Expected result: Mixxx follows the Link session tempo and keeps synced decks
 phase-aligned while deck Sync is enabled. If Start/Stop Sync is enabled, Link
 session transport state should also be reflected through the `playing` control.
 Pressing `Launch` with Link and Start/Stop Sync enabled should schedule synced
-Mixxx decks to start on the next Link beat instead of starting immediately.
+Mixxx decks to start on the selected Link launch quantum instead of starting
+immediately.
 
 An Ableton Live smoke-test set is included at:
 
@@ -130,8 +167,12 @@ run normally.
 
 ## Current known limitations
 
-- Mixxx currently uses a one-beat Link quantum. This supports tempo, beat phase,
-  and next-beat Launch, but does not claim bar/phrase launch.
+- Mixxx uses a one-beat Link quantum for deck beat sync. Selectable Launch
+  quantum is implemented separately for `1`, `2`, `4`, and `8` beat launch
+  grids.
+- LinkAudio-enabled builds publish Mixxx's final stereo main output to LinkAudio
+  as `Mixxx Main`; inbound LinkAudio streams are discovered but not mixed into
+  Mixxx by default.
 - Link peer discovery depends on local firewall, VPN, multicast, and network
   adapter behavior.
 - On Windows, Ableton Live may hide its own Link button with DirectX/MME. Mixxx

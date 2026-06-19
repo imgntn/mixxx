@@ -42,7 +42,10 @@ Record these values for every manual run:
 15. Confirm synced Mixxx decks start and stop with Live transport.
 16. Stop Mixxx decks, keep Link and Start/Stop Sync enabled, then press
     `Launch`.
-17. Confirm synced Mixxx decks start on the next Link beat.
+17. Set launch quantum to `1`, then confirm synced Mixxx decks start on the next
+    Link beat.
+18. Repeat with launch quantum `4`, then confirm synced Mixxx decks wait for a
+    later matching Link quantum boundary instead of starting immediately.
 
 Expected result: tempo, phase, peer count, Start/Stop Sync, and quantized launch
 all behave consistently, with no stale launch indicator after cancellation.
@@ -76,6 +79,22 @@ sample utility if available in the local Ableton Link source package.
 
 Expected result: Mixxx behaves the same with non-Live Link peers as it does with
 Ableton Live.
+
+## Official Link audio-engine alignment
+
+This follows Ableton's Link test-plan intent for audio-engine latency
+compensation.
+
+1. Start LinkHut or another click-like Link reference peer.
+2. Enable Link in the reference peer and start playback.
+3. Enable Link in Mixxx.
+4. Play a short, click-like sample from a synced Mixxx deck on the same beats as
+   the reference peer.
+5. Record both outputs through physical loopback or a reliable software loopback.
+6. Measure onset alignment between the reference click and Mixxx output.
+
+Expected result: Mixxx and the reference peer align within 3 ms. Record the
+measured offset, audio interface, driver, sample rate, and buffer size.
 
 ## Network churn
 

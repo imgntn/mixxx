@@ -429,9 +429,29 @@ ControlPickerMenu::ControlPickerMenu(QWidget* pParent)
             tr("Follow Ableton Link transport start and stop messages"),
             pSyncMenu);
     addControl("[AbletonLink]",
+            "link_audio_enabled",
+            tr("Ableton LinkAudio"),
+            tr("Enable Ableton LinkAudio channel discovery when available"),
+            pSyncMenu);
+    addControl("[AbletonLink]",
+            "link_audio_available",
+            tr("Ableton LinkAudio Available"),
+            tr("Whether this Mixxx build includes Ableton LinkAudio support"),
+            pSyncMenu);
+    addControl("[AbletonLink]",
+            "link_audio_num_channels",
+            tr("Ableton LinkAudio Channels"),
+            tr("Number of discovered Ableton LinkAudio channels"),
+            pSyncMenu);
+    addControl("[AbletonLink]",
             "quantized_launch",
             tr("Ableton Link Quantized Launch"),
-            tr("Start Link transport and synced Mixxx decks on the next Link beat"),
+            tr("Start Link transport and synced Mixxx decks on the selected launch quantum"),
+            pSyncMenu);
+    addControl("[AbletonLink]",
+            "launch_quantum",
+            tr("Ableton Link Launch Quantum"),
+            tr("Beat grid used by Ableton Link Quantized Launch"),
             pSyncMenu);
     addControl("[AbletonLink]",
             "num_peers",
@@ -451,7 +471,7 @@ ControlPickerMenu::ControlPickerMenu(QWidget* pParent)
     addControl("[AbletonLink]",
             "quantum",
             tr("Ableton Link Quantum"),
-            tr("Current Ableton Link quantum used by Mixxx"),
+            tr("Current Ableton Link quantum used by Mixxx deck beat sync"),
             pSyncMenu);
     addControl("[AbletonLink]",
             "playing",
@@ -459,14 +479,34 @@ ControlPickerMenu::ControlPickerMenu(QWidget* pParent)
             tr("Current Ableton Link start/stop playing state"),
             pSyncMenu);
     addControl("[AbletonLink]",
+            "output_latency_micros",
+            tr("Ableton Link Output Latency"),
+            tr("Measured callback-to-output latency used for Link timing, in microseconds"),
+            pSyncMenu);
+    addControl("[AbletonLink]",
+            "host_time_filter_enabled",
+            tr("Ableton Link Host Time Filter"),
+            tr("Whether Link timing is using the host-time filter for audio callback timestamps"),
+            pSyncMenu);
+    addControl("[AbletonLink]",
             "next_beat_time_micros",
             tr("Ableton Link Next Beat Time"),
             tr("Ableton Link clock time of the next beat, in microseconds"),
             pSyncMenu);
     addControl("[AbletonLink]",
+            "next_beat_eta_micros",
+            tr("Ableton Link Next Beat ETA"),
+            tr("Time until the next Ableton Link beat, in microseconds"),
+            pSyncMenu);
+    addControl("[AbletonLink]",
             "quantized_launch_time_micros",
             tr("Ableton Link Quantized Launch Time"),
             tr("Scheduled Ableton Link quantized launch time, in microseconds"),
+            pSyncMenu);
+    addControl("[AbletonLink]",
+            "quantized_launch_eta_micros",
+            tr("Ableton Link Quantized Launch ETA"),
+            tr("Time until the scheduled Ableton Link quantized launch, in microseconds"),
             pSyncMenu);
 
     pSyncMenu->addSeparator();

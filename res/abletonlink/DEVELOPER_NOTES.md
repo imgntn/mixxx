@@ -15,7 +15,7 @@ Primary responsibilities:
 2. Publish Link session state through `[AbletonLink]` controls.
 3. Exchange tempo and beat phase with `EngineSync`.
 4. Optionally publish and follow Link Start/Stop Sync transport state.
-5. Schedule quantized launch on the next Link beat.
+5. Schedule quantized launch on the selected Link launch quantum.
 
 `EngineSync` remains the owner of deck sync behavior. Link transport actions go
 through `EngineSync::setLinkTransportPlaying()`, which only starts or stops
@@ -30,7 +30,8 @@ callback for best timing accuracy. The Mixxx integration follows that pattern:
 - Tempo and beat phase are published to `EngineSync` from the callback path.
 - Pending Start/Stop Sync state is stored atomically and consumed from the
   callback.
-- `AbletonLink::onCallbackEnd()` releases the cached audio session state.
+- The captured audio session state remains available through final main-output
+  publishing, then is overwritten on the next callback.
 
 The Link callbacks for peer count and Start/Stop Sync arrive from Link-managed
 threads. They use `QMetaObject::invokeMethod(..., Qt::QueuedConnection)` and a
@@ -48,14 +49,22 @@ The public integration surface is the `[AbletonLink]` control group:
 | `sync_enabled` | yes | Requested Link session enable state. |
 | `enabled` | no | Effective Link engine state. |
 | `start_stop_sync_enabled` | yes | Requested Link Start/Stop Sync state. |
-| `quantized_launch` | yes | Momentary command to start Link transport and synced Mixxx decks on the next Link beat. |
+| `link_audio_enabled` | yes | Requested LinkAudio enable state, honored when built with LinkAudio headers. |
+| `link_audio_available` | no | Build capability for LinkAudio. |
+| `link_audio_num_channels` | no | Number of discovered LinkAudio channels. |
+| `quantized_launch` | yes | Momentary command to start Link transport and synced Mixxx decks on the selected launch quantum. |
+| `launch_quantum` | yes | Launch grid in beats. Supported values are `1`, `2`, `4`, and `8`. |
 | `num_peers` | no | Number of other Link peers. |
 | `bpm` | no | Link session tempo. |
 | `beat_distance` | no | Current Link beat phase within `quantum`. |
-| `quantum` | no | Link phase quantum used by Mixxx. Currently `1.0` beat. |
+| `quantum` | no | Link phase quantum used for Mixxx deck beat sync. Currently `1.0` beat. |
 | `playing` | no | Link session playing state. |
+| `output_latency_micros` | no | Measured callback-to-output latency used for Link timing compensation. |
+| `host_time_filter_enabled` | no | `1` when Link timing is using Link's host-time filter for callback timestamps. |
 | `next_beat_time_micros` | no | Link clock time for the next beat. |
+| `next_beat_eta_micros` | no | Time until the next Link beat. |
 | `quantized_launch_time_micros` | no | Scheduled launch time, or `0` when no launch is pending. |
+| `quantized_launch_eta_micros` | no | Time until the scheduled launch, or `0` when no launch is pending. |
 
 Status controls are read-only and intentionally reject external writes. Tests
 cover this so controller mappings, skins, and scripts can rely on these values
@@ -70,9 +79,16 @@ enabled, Mixxx publishes synced deck play/stop state to Link and follows Link
 transport changes from peers.
 
 Launch is a momentary action. It schedules Link transport and synced Mixxx decks
-to start on the next Link beat. Launch is ignored unless Link is enabled,
-Start/Stop Sync is enabled, and at least one synchronized primary deck exists.
-This avoids hidden pending launch state when there is no valid Mixxx deck target.
+to start on the selected Link launch quantum. Launch is ignored unless Link is
+enabled, Start/Stop Sync is enabled, and at least one synchronized primary deck
+exists. This avoids hidden pending launch state when there is no valid Mixxx
+deck target.
+
+Launch quantum is deliberately separate from `quantum`. `quantum` remains `1.0`
+for normal deck beat sync because `EngineSync` expects one-beat phase values.
+`launch_quantum` is a persistent writable control and may be set to `1`, `2`,
+`4`, or `8` beats. Unsupported values are rejected and the previously confirmed
+value remains active.
 
 ## External Peer Test
 
@@ -90,16 +106,43 @@ LinkHut, a local peer harness, or another compatible helper.
 
 ## Current Known Limitations
 
-### One-Beat Quantum
+### Beat Sync Quantum
 
-Mixxx currently exposes a one-beat Link quantum. This supports tempo and beat
-phase sync reliably, and it makes Launch start on the next beat. It does not
-claim bar-level or phrase-level launch.
+Mixxx keeps the Link quantum used for deck beat sync at one beat. This supports
+tempo and beat phase sync reliably without sending bar-phase values into
+`EngineSync`.
 
-This should not be "fixed" by hard-coding a four-beat quantum. Mixxx does not
-currently model a shared bar phase or time signature in the sync engine. A
-future feature could add a user-selectable launch quantum, but it should be a
-deliberate UI/control design with tests for downbeat expectations.
+Selectable launch quantum is implemented through the separate `launch_quantum`
+control. Larger launch quantum values use Link's quantum-aware beat/time APIs
+for Launch scheduling, but they do not change normal deck beat phase sync.
+
+### Timing Source
+
+Mixxx uses Ableton Link's default platform clock, not `BasicLink` with the STL
+clock. On Windows this selects Link's platform clock implementation. For the
+normal audio callback path, Mixxx filters callback-entry timestamps with Link's
+`HostTimeFilter`, then adds Mixxx's measured callback-to-output latency before
+calling Link beat/time APIs. If a future backend supplies an exact output-buffer
+system timestamp, the explicit timestamp overload can bypass the host-time
+filter.
+
+### LinkAudio
+
+Ableton Link 4.0 adds LinkAudio for audio-channel sharing between peers. Mixxx
+detects `LinkAudio.hpp` at compile time. When present, `AbletonLink` uses
+`ableton::LinkAudio`, exposes LinkAudio enable/availability controls, and
+publishes the discovered channel count from Link's channels-changed callback.
+It also owns a persistent `ableton::LinkAudioSink` named `Mixxx Main` and, when
+LinkAudio is enabled, commits the final stereo main output buffer to that sink
+from the audio callback path. The sink is created once with `AbletonLink`, so the
+engine callback does not allocate or destroy LinkAudio routes. When LinkAudio
+headers are absent, Mixxx still builds against older Link headers and the
+LinkAudio controls report unavailable.
+
+Receiving LinkAudio streams into the Mixxx mixer is not enabled by default.
+That needs explicit user-facing routing, gain, monitoring, and feedback-loop
+avoidance design. The current implementation publishes Mixxx's own final main
+output while avoiding silent inbound network audio mixing.
 
 ### Network Discovery Is Environment Dependent
 

@@ -8,15 +8,18 @@ for the upstream pull request.
 This change adds Ableton Link support to Mixxx. When built with Link support,
 Mixxx can join a Link session, follow and publish session tempo/beat phase, show
 peer/session status through normal Mixxx controls, optionally participate in
-Link Start/Stop Sync, and launch synced decks on the next Link beat.
+Link Start/Stop Sync, and launch synced decks on a selectable Link launch
+quantum.
 
 ## User-Visible Behavior
 
 - New `[AbletonLink]` controls expose Link enable state, peer count, BPM, beat
-  phase, quantum, playing state, next beat time, and pending launch time.
+  phase, beat-sync quantum, launch quantum, LinkAudio availability/channel
+  discovery, playing state, output latency compensation, host-time-filter
+  status, next beat timing, and pending launch timing.
 - Default skins expose compact Link controls for enabling Link, peer/BPM
   status, Start/Stop Sync, and Launch.
-- Sync preferences expose Link availability and status.
+- Sync preferences expose Link availability, status, and launch quantum.
 - On Windows, Mixxx Link controls remain available whenever Mixxx is built with
   Link support, even if Ableton Live hides its own Link button for DirectX/MME
   driver configurations.
@@ -36,11 +39,23 @@ When `FETCH_ABLETONLINK=OFF`, the build expects a system package exposing
 - Link is modeled as a `Syncable`, but it is not a deck and is not audible.
 - `EngineSync` remains responsible for choosing and controlling synced decks.
 - Link audio session state is captured/committed from the audio callback path.
+- Link timing uses Ableton Link's default platform clock, Link's
+  `HostTimeFilter` for callback-entry timestamps, and Mixxx's measured
+  callback-to-output latency so session state is evaluated at output time rather
+  than raw callback entry time.
 - Link-managed callbacks are marshaled to Qt with guarded object lifetime.
 - Start/Stop Sync and Launch are intentionally separate:
   - Start/Stop Sync opts Mixxx into Link transport.
-  - Launch is a momentary next-beat transport/deck start request.
+  - Launch is a momentary transport/deck start request quantized to the selected
+    Link launch quantum.
 - Launch is ignored unless a synchronized primary deck target exists.
+- Deck beat sync keeps a one-beat Link quantum; selectable Launch quantum is a
+  separate control so larger launch grids do not leak bar-phase values into
+  `EngineSync`.
+- When built with Ableton Link 4.0 headers, Mixxx uses `ableton::LinkAudio`,
+  can enable LinkAudio channel discovery, and publishes the final stereo main
+  output as a LinkAudio sink named `Mixxx Main`. Older Link headers remain
+  supported and report LinkAudio unavailable.
 
 Detailed architecture notes are in:
 
@@ -65,7 +80,7 @@ build\x64__abletonlink\mixxx-test.exe --gtest_filter=EngineSyncTest.*Link* --gte
 Observed local result:
 
 ```text
-40 passed, 1 skipped
+43 passed, 1 skipped
 ```
 
 The skipped test is the optional external peer test when
@@ -127,8 +142,9 @@ res/abletonlink/WINDOWS_REAL_WORLD_VALIDATION.md
 
 ## Known Limitations
 
-- Mixxx currently uses a one-beat Link quantum. This is beat-level sync and
-  launch, not bar/phrase launch.
+- Mixxx uses a one-beat Link quantum for deck beat sync. Selectable Launch
+  quantum is implemented separately for `1`, `2`, `4`, and `8` beat launch
+  grids.
 - Network discovery depends on local firewall, VPN, multicast, and adapter
   behavior.
 - Ableton Live may hide its own Link button with DirectX/MME on Windows.
@@ -145,7 +161,7 @@ These are documented in more detail in `DEVELOPER_NOTES.md`.
 Adds Ableton Link support to Mixxx for tempo/beat phase synchronization with
 Link-capable applications. The integration exposes Link state through regular
 Mixxx controls, adds Start/Stop Sync support, and provides a quantized Launch
-action for starting synced decks on the next Link beat.
+action for starting synced decks on a selectable Link launch quantum.
 
 ## User-visible behavior
 
@@ -153,7 +169,7 @@ action for starting synced decks on the next Link beat.
 - Peer count, Link BPM, beat phase, playing state, and next-beat timing are
   observable.
 - Start/Stop Sync can publish/follow Link transport.
-- Launch starts synced Mixxx decks on the next Link beat.
+- Launch starts synced Mixxx decks on the selected Link launch quantum.
 
 ## Implementation notes
 
@@ -161,11 +177,13 @@ action for starting synced decks on the next Link beat.
 - Link audio session state is captured from the audio callback path.
 - Link-managed callbacks are queued back to Qt with guarded object lifetime.
 - Launch is ignored when no synchronized primary deck target exists.
+- Launch quantum is separate from the one-beat quantum used for normal deck
+  beat sync.
 
 ## Testing
 
 - Built `mixxx-test` with Ableton Link enabled.
-- Ran `EngineSyncTest.*Link*`: 40 passed; optional external-peer test skipped
+- Ran `EngineSyncTest.*Link*`: 43 passed; optional external-peer test skipped
   when `MIXXX_LINK_PEER_EXE` was unset.
 - Ran external peer test with local peer harness: passed.
 - Ran Windows WASAPI loopback audio preflight: signal and click transients
@@ -173,7 +191,8 @@ action for starting synced decks on the next Link beat.
 
 ## Known limitations
 
-- Current Link quantum is one beat; bar/phrase launch is future work.
+- Deck beat sync uses a one-beat Link quantum; Launch supports selectable
+  `1`, `2`, `4`, and `8` beat quantum values.
 - Network peer discovery depends on local firewall/VPN/adapter behavior.
 - Ableton Live may hide its own Link button with DirectX/MME on Windows; Mixxx
   controls remain available when Mixxx is built with Link support.

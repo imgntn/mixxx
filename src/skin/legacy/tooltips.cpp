@@ -689,7 +689,7 @@ void Tooltips::addStandardTooltips() {
 
     add("ableton_link_quantized_launch")
             << tr("Ableton Link Quantized Launch")
-            << tr("Starts Link transport and synced Mixxx decks on the next Link beat.")
+            << tr("Starts Link transport and synced Mixxx decks on the selected Link launch quantum.")
             << tr("Requires Link and Start/Stop Sync to be enabled.");
 
     // TODO(owen): find a better phrase for "the other deck"

@@ -10,10 +10,16 @@
 #include <QTimer>
 
 #ifdef __ABLETONLINK__
+#if __has_include(<ableton/LinkAudio.hpp>)
+#include <ableton/LinkAudio.hpp>
+#define MIXXX_ABLETON_LINK_AUDIO 1
+#else
 #include <ableton/Link.hpp>
-#include <ableton/platforms/stl/Clock.hpp>
+#endif
+#include <ableton/link/HostTimeFilter.hpp>
 #endif
 
+#include "audio/types.h"
 #include "control/controlpushbutton.h"
 #include "engine/channels/enginechannel.h"
 #include "engine/enginebuffer.h"
@@ -33,15 +39,15 @@
 /// for maximum timing accuracy. Call the appropriate, realtime-safe functions
 /// from the audio callback to do this.
 
-// std::chrono::steady_clock
-// -> selected by keyword 'stl' in ableton-link
-// Note that the resolution of std::chrono::steady_clock is not guaranteed
-// to be high resolution, but it is guaranteed to be monotonic.
-// However, on all major platforms, it is high resolution enough.
 #ifdef __ABLETONLINK__
-using MixxxClockRef = ableton::platforms::stl::Clock;
-using MixxxAbletonLink = ableton::BasicLink<MixxxClockRef>;
+#ifdef MIXXX_ABLETON_LINK_AUDIO
+using MixxxAbletonLink = ableton::LinkAudio;
+#else
+using MixxxAbletonLink = ableton::Link;
+#endif
+using MixxxClockRef = MixxxAbletonLink::Clock;
 using MixxxAbletonLinkSessionState = MixxxAbletonLink::SessionState;
+using MixxxAbletonLinkHostTimeFilter = ableton::link::HostTimeFilter<MixxxClockRef>;
 #endif
 
 class AbletonLink : public QObject, public Syncable {
@@ -61,9 +67,14 @@ class AbletonLink : public QObject, public Syncable {
     /// tests:
     /// - [AbletonLink],sync_enabled toggles session participation.
     /// - [AbletonLink],start_stop_sync_enabled toggles Link transport sync.
+    /// - [AbletonLink],link_audio_enabled toggles LinkAudio channel discovery.
     /// - [AbletonLink],enabled mirrors the effective enabled state.
-    /// - [AbletonLink],num_peers, bpm, beat_distance, quantum, and playing
-    ///   publish read-only session status.
+    /// - [AbletonLink],launch_quantum sets the quantized Launch grid in beats.
+    /// - [AbletonLink],link_audio_available, link_audio_num_channels,
+    ///   num_peers, bpm, beat_distance, quantum, playing, output_latency_micros,
+    ///   host_time_filter_enabled, next_beat_time_micros,
+    ///   next_beat_eta_micros, quantized_launch_time_micros, and
+    ///   quantized_launch_eta_micros publish session diagnostics.
     ///
     /// Keep these controls stable. They are the integration surface for skins
     /// and downstream automation, not just implementation details of this
@@ -93,10 +104,14 @@ class AbletonLink : public QObject, public Syncable {
     void setEnabled(bool enabled);
     bool isStartStopSyncEnabled() const;
     void setStartStopSyncEnabled(bool enabled);
+    bool isLinkAudioAvailable() const;
+    bool isLinkAudioEnabled() const;
+    void setLinkAudioEnabled(bool enabled);
     void requestStartStopSync(bool playing);
     void requestQuantizedLaunch();
     std::size_t numPeers() const;
     double getQuantum() const;
+    double getLaunchQuantum() const;
 
     /// Gets the current speed of the syncable in bpm (bpm * rate slider), doesn't
     /// include scratch or FF/REW values.
@@ -134,27 +149,40 @@ class AbletonLink : public QObject, public Syncable {
     void updateInstantaneousBpm(mixxx::Bpm bpm) override;
 
     void onCallbackStart();
-    void onCallbackStart(std::chrono::microseconds absTimeWhenPrevOutputBufferReachesDac);
+    void onCallbackStart(mixxx::audio::SampleRate sampleRate, std::size_t bufferSize);
+    void onCallbackStart(
+            std::chrono::microseconds absTimeWhenPrevOutputBufferReachesDac,
+            std::chrono::microseconds outputLatency = std::chrono::microseconds(0),
+            bool hostTimeFilterEnabled = false);
     void onCallbackEnd(int sampleRate, size_t bufferSize);
+    void publishLinkAudioMainOutput(
+            const CSAMPLE* pBuffer,
+            std::size_t bufferSize,
+            mixxx::audio::SampleRate sampleRate);
 
   private:
     void slotControlSyncEnabled(double value);
     void slotControlStartStopSyncEnabled(double value);
+    void slotControlLinkAudioEnabled(double value);
     void slotControlQuantizedLaunch(double value);
+    void slotControlLaunchQuantum(double value);
     void slotLinkStartStopChanged(
             bool playing,
             std::chrono::microseconds timeForIsPlaying,
             uint64_t generation);
     void setNumPeers(std::size_t numPeers);
+    void updateLinkAudioChannels();
     void publishSessionState(mixxx::Bpm bpm, double beatDistance, bool playing);
+    void publishCallbackTempo(double bpm);
     void applyScheduledStartStopSync();
     std::chrono::microseconds currentCallbackTime() const;
     void cancelPendingStartStopSync();
     void clearQuantizedLaunchTime();
 #ifdef __ABLETONLINK__
-    std::chrono::microseconds timeAtNextBeat(
+    std::chrono::microseconds timeAtNextQuantum(
             const MixxxAbletonLinkSessionState& sessionState,
-            std::chrono::microseconds time) const;
+            std::chrono::microseconds time,
+            double quantum) const;
     MixxxAbletonLinkSessionState captureSessionState() const;
     void commitSessionState(MixxxAbletonLinkSessionState sessionState);
 #endif
@@ -164,6 +192,9 @@ class AbletonLink : public QObject, public Syncable {
     SyncMode m_syncMode;
     std::atomic_bool m_linkEnabled;
     std::atomic_bool m_startStopSyncEnabled;
+    std::atomic_bool m_linkAudioEnabled;
+    std::atomic_size_t m_numLinkAudioChannels;
+    std::atomic<int> m_launchQuantumBeats;
     std::atomic<int> m_pendingStartStopSyncState;
     std::atomic_size_t m_numPeers;
     std::atomic<uint64_t> m_startStopSyncGeneration;
@@ -180,17 +211,30 @@ class AbletonLink : public QObject, public Syncable {
 
 #ifdef __ABLETONLINK__
     std::unique_ptr<MixxxAbletonLink> m_pLink;
+    MixxxAbletonLinkHostTimeFilter m_hostTimeFilter;
+    double m_audioCallbackSampleTime;
     std::optional<MixxxAbletonLinkSessionState> m_audioSessionState;
+#ifdef MIXXX_ABLETON_LINK_AUDIO
+    std::unique_ptr<ableton::LinkAudioSink> m_pLinkAudioMainSink;
+#endif
 #endif
     std::unique_ptr<ControlPushButton> m_pLinkButton;
     std::unique_ptr<ControlPushButton> m_pStartStopSyncButton;
+    std::unique_ptr<ControlPushButton> m_pLinkAudioButton;
     std::unique_ptr<ControlPushButton> m_pQuantizedLaunchButton;
     std::unique_ptr<ControlObject> m_pEnabled;
+    std::unique_ptr<ControlObject> m_pLinkAudioAvailable;
+    std::unique_ptr<ControlObject> m_pLinkAudioNumChannels;
     std::unique_ptr<ControlObject> m_pNumLinkPeers;
     std::unique_ptr<ControlObject> m_pBpm;
     std::unique_ptr<ControlObject> m_pBeatDistance;
     std::unique_ptr<ControlObject> m_pQuantum;
+    std::unique_ptr<ControlObject> m_pLaunchQuantum;
     std::unique_ptr<ControlObject> m_pPlaying;
+    std::unique_ptr<ControlObject> m_pOutputLatency;
+    std::unique_ptr<ControlObject> m_pHostTimeFilterEnabled;
     std::unique_ptr<ControlObject> m_pNextBeatTime;
+    std::unique_ptr<ControlObject> m_pNextBeatEta;
     std::unique_ptr<ControlObject> m_pQuantizedLaunchTime;
+    std::unique_ptr<ControlObject> m_pQuantizedLaunchEta;
 };
