@@ -9,6 +9,7 @@
 
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <memory>
 #include <string>
@@ -4313,6 +4314,7 @@ TEST_F(EngineSyncTest, LinkAudioPublishSnapshotSurvivesControlChurn) {
     std::array<CSAMPLE, 512> outputBuffer{};
     std::atomic_bool stop{false};
     std::atomic_int publishCount{0};
+    std::atomic_int registrationCount{0};
     std::thread publisher([&]() {
         while (!stop.load(std::memory_order_acquire)) {
             m_pEngineSync->publishLinkAudioMainOutput(
@@ -4330,6 +4332,20 @@ TEST_F(EngineSyncTest, LinkAudioPublishSnapshotSurvivesControlChurn) {
                     outputBuffer.size(),
                     mixxx::audio::SampleRate(48000));
             publishCount.fetch_add(1, std::memory_order_release);
+        }
+    });
+    std::thread registrar([&]() {
+        int iteration = 0;
+        while (!stop.load(std::memory_order_acquire)) {
+            m_pEngineSync->registerLinkAudioOutput(
+                    QStringLiteral("[Channel1]"),
+                    QStringLiteral("Mixxx Deck %1").arg((iteration % 2) + 1));
+            m_pEngineSync->registerLinkAudioOutput(
+                    QStringLiteral("[Sampler1]"),
+                    QStringLiteral("Mixxx Sampler %1").arg((iteration % 4) + 1));
+            ++iteration;
+            registrationCount.fetch_add(1, std::memory_order_release);
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     });
 
@@ -4350,7 +4366,9 @@ TEST_F(EngineSyncTest, LinkAudioPublishSnapshotSurvivesControlChurn) {
 
     stop.store(true, std::memory_order_release);
     publisher.join();
+    registrar.join();
     EXPECT_GT(publishCount.load(std::memory_order_acquire), 0);
+    EXPECT_GT(registrationCount.load(std::memory_order_acquire), 0);
 
     ControlObject::set(ConfigKey("[AbletonLink]", "sync_enabled"), 0.0);
 #endif

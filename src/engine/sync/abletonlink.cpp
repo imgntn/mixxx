@@ -91,7 +91,12 @@ void AbletonLink::LinkAudioInput::onBuffer(
         return;
     }
 
+    if (writing.test_and_set(std::memory_order_acquire)) {
+        return;
+    }
+
     if (queued.load(std::memory_order_acquire) >= kBufferSlots) {
+        writing.clear(std::memory_order_release);
         return;
     }
 
@@ -123,6 +128,7 @@ void AbletonLink::LinkAudioInput::onBuffer(
 
     writeIndex.store((write + 1) % kBufferSlots, std::memory_order_release);
     queued.fetch_add(1, std::memory_order_release);
+    writing.clear(std::memory_order_release);
 }
 
 bool AbletonLink::LinkAudioInput::mixInto(
@@ -539,10 +545,13 @@ AbletonLink::~AbletonLink() {
     m_pLink->setTempoCallback([](double) {});
 #ifdef MIXXX_ABLETON_LINK_AUDIO
     m_pLink->setChannelsChangedCallback([]() {});
-    m_linkAudioOutputSnapshot.store(
-            std::make_shared<LinkAudioOutputSnapshot>(),
-            std::memory_order_release);
-    m_linkAudioOutputs.clear();
+    {
+        std::lock_guard lock(m_linkAudioOutputsMutex);
+        m_linkAudioOutputs.clear();
+        m_linkAudioOutputSnapshot.store(
+                std::make_shared<LinkAudioOutputSnapshot>(),
+                std::memory_order_release);
+    }
     m_linkAudioInputs.store(
             std::make_shared<std::vector<std::shared_ptr<LinkAudioInput>>>(),
             std::memory_order_release);
@@ -1063,13 +1072,14 @@ void AbletonLink::registerLinkAudioOutput(const QString& group, const QString& n
         return;
     }
 
+    std::lock_guard lock(m_linkAudioOutputsMutex);
     for (auto& output : m_linkAudioOutputs) {
         if (output.group == group) {
             if (output.name != name) {
                 output.name = name;
                 output.pSink.reset();
             }
-            updateLinkAudioOutputSinks();
+            updateLinkAudioOutputSinksLocked();
             return;
         }
     }
@@ -1078,7 +1088,7 @@ void AbletonLink::registerLinkAudioOutput(const QString& group, const QString& n
             group,
             name,
             nullptr});
-    updateLinkAudioOutputSinks();
+    updateLinkAudioOutputSinksLocked();
 #else
     Q_UNUSED(group)
     Q_UNUSED(name)
@@ -1200,6 +1210,13 @@ void AbletonLink::mixInboundLinkAudioMainOutput(
 }
 
 void AbletonLink::updateLinkAudioOutputSinks() {
+#if defined(__ABLETONLINK__) && defined(MIXXX_ABLETON_LINK_AUDIO)
+    std::lock_guard lock(m_linkAudioOutputsMutex);
+    updateLinkAudioOutputSinksLocked();
+#endif
+}
+
+void AbletonLink::updateLinkAudioOutputSinksLocked() {
 #if defined(__ABLETONLINK__) && defined(MIXXX_ABLETON_LINK_AUDIO)
     const bool canPublish = isEnabled() && isLinkAudioEnabled();
     const bool publishSources = isLinkAudioSourcesEnabled();

@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
@@ -199,6 +200,7 @@ class AbletonLink : public QObject, public Syncable {
     void setNumPeers(std::size_t numPeers);
     void updateLinkAudioChannels();
     void updateLinkAudioOutputSinks();
+    void updateLinkAudioOutputSinksLocked();
     void publishSessionState(mixxx::Bpm bpm, double beatDistance, bool playing);
     void publishCallbackTempo(double bpm);
     void applyScheduledStartStopSync();
@@ -289,7 +291,9 @@ class AbletonLink : public QObject, public Syncable {
         std::atomic_size_t writeIndex{0};
         std::atomic_size_t readIndex{0};
         std::atomic_size_t queued{0};
+        std::atomic_flag writing = ATOMIC_FLAG_INIT;
     };
+    std::mutex m_linkAudioOutputsMutex;
     std::vector<LinkAudioOutput> m_linkAudioOutputs;
     std::atomic<std::shared_ptr<LinkAudioOutputSnapshot>> m_linkAudioOutputSnapshot;
     std::atomic<std::shared_ptr<std::vector<std::shared_ptr<LinkAudioInput>>>> m_linkAudioInputs;
