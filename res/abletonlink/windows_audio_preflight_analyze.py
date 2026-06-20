@@ -11,6 +11,19 @@ import numpy as np
 import soundfile as sf
 
 
+def import_soundcard():
+    if os.name == "nt":
+        # soundcard's Windows backend only needs this to special-case Windows 8.
+        # Python's platform.win32_ver() can hang on machines where WMI/CIM
+        # queries are unhealthy, so avoid that path for validation tooling.
+        import platform
+
+        platform.win32_ver = lambda: ("10", "", "", "")  # type: ignore[assignment]
+    import soundcard as sc
+
+    return sc
+
+
 def dbfs(value: float) -> float:
     if value <= 1e-12:
         return -240.0
@@ -165,7 +178,7 @@ def hidden_subprocess_kwargs() -> dict:
 
 def record_loopback(args) -> None:
     try:
-        import soundcard as sc
+        sc = import_soundcard()
     except ImportError as exc:
         raise RuntimeError(
             "The Python 'soundcard' package is required for WASAPI loopback. "

@@ -5,10 +5,15 @@ param(
     [int]$BaselineSeconds = 5,
     [int]$PlaybackSeconds = 8,
     [int]$PlaybackVolume = 35,
+    [string]$PythonExe = $env:MIXXX_AUDIO_PREFLIGHT_PYTHON,
     [switch]$LaunchBrowser = $true
 )
 
 $ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($PythonExe)) {
+    $PythonExe = "python"
+}
 
 function Get-DShowAudioDevices {
     $oldErrorActionPreference = $ErrorActionPreference
@@ -196,15 +201,15 @@ function ConvertTo-SafeFileName {
 }
 
 function Test-PythonSoundcard {
-    & python -c "import soundcard" *> $null
+    & $PythonExe -c "import os; import platform; platform.win32_ver = lambda: ('10', '', '', ''); import soundcard" *> $null
     return ($LASTEXITCODE -eq 0)
 }
 
 function Invoke-PythonChecked {
     param([string[]]$Arguments)
-    & python @Arguments
+    & $PythonExe @Arguments
     if ($LASTEXITCODE -ne 0) {
-        throw "python $($Arguments -join ' ') failed with exit code $LASTEXITCODE"
+        throw "$PythonExe $($Arguments -join ' ') failed with exit code $LASTEXITCODE"
     }
 }
 

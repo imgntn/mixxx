@@ -22,6 +22,19 @@ from the default Windows playback device:
 python -m pip install --user soundcard
 ```
 
+If the default `python` launcher or global `pip` hangs, use a known-good Python
+interpreter and pass it explicitly:
+
+```powershell
+$env:PYTHONPATH = "X:\mixxx_test\ableton-link-peer-tools\vendor\python"
+.\res\abletonlink\windows-audio-preflight.ps1 -PythonExe "C:\Users\James Pollack\AppData\Local\Programs\Python\Python312\python.exe"
+```
+
+The preflight patches Python's `platform.win32_ver()` before importing
+`soundcard`, because that standard-library call can hang on machines where
+WMI/CIM queries are unhealthy. That hang is separate from browser/music apps
+playing audio and does not imply the WASAPI loopback device is blocked.
+
 It also falls back to each FFmpeg DirectShow capture device, which is useful for
 documenting physical microphones and unreadable virtual devices. A pass means
 the active capture path heard the playback signal. A check/fail result is still

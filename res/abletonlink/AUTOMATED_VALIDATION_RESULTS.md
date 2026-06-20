@@ -1,6 +1,6 @@
 # Ableton Link automated validation results
 
-Last updated: 2026-06-19 20:31 Pacific
+Last updated: 2026-06-19 22:50 Pacific
 
 Branch: `codex/ableton-link-upstream`
 
@@ -103,41 +103,50 @@ at the same time unless the test harness is extended to isolate sessions.
 Attempted:
 
 ```powershell
-.\res\abletonlink\windows-audio-preflight.ps1 -RepoRoot X:\mixxx_test\mixxx -OutputRoot X:\mixxx_test\ableton-link-peer-tools\logs\audio_preflight -PlaybackVolume 20
+$env:PYTHONPATH = "X:\mixxx_test\ableton-link-peer-tools\vendor\python"
+.\res\abletonlink\windows-audio-preflight.ps1 -RepoRoot X:\mixxx_test\mixxx -OutputRoot X:\mixxx_test\ableton-link-peer-tools\logs\audio_preflight -PlaybackVolume 20 -PythonExe "C:\Users\James Pollack\AppData\Local\Programs\Python\Python312\python.exe"
 ```
 
-Result: blocked in this environment. The latest run created only the generated
-click-test WAV and timed out before capture summary generation:
+Result: passed with Python `soundcard` WASAPI loopback.
 
 ```text
-X:\mixxx_test\ableton-link-peer-tools\logs\audio_preflight\20260619-202352\audio-preflight-click-test.wav
+X:\mixxx_test\ableton-link-peer-tools\logs\audio_preflight\20260619-224738\audio-preflight-summary.json
+X:\mixxx_test\ableton-link-peer-tools\logs\audio_preflight\20260619-224738\audio-preflight-checklist-20260619-224738.html
+X:\mixxx_test\ableton-link-peer-tools\logs\audio_preflight\20260619-224738\WASAPI_loopback\audio-preflight-waveforms.png
 ```
 
-The earlier completed audio preflight found no Python `soundcard` WASAPI
-loopback support and fell back to DirectShow microphones. Those microphones did
-not capture playback from the default output device:
+Summary from the successful run:
+
+- WASAPI loopback through Python `soundcard`: available.
+- Loopback device: `DELL S3422DWG (NVIDIA High Definition Audio)`.
+- Result: `signal-and-transients-detected`.
+- RMS increase: `195.49 dB`.
+- Detected transients: `15`.
+- Playback volume: `20`.
+
+DirectShow fallback results in the same run:
+
+- `Microphone (BlackShark V3 - Chat)`: readable but did not capture default
+  playback (`0.01 dB` RMS increase, `0` transients).
+- `Microphone (Steam Streaming Microphone)`: FFmpeg DirectShow recording
+  failed during baseline capture.
+
+### Python WASAPI root cause
+
+The earlier audio preflight failures were caused by Python tooling, not by
+Chrome, Spotify, Ableton Live, or another app playing audio. `soundcard`'s
+Windows backend calls `platform.win32_ver()` at import time only to special-case
+Windows 8. On this machine, Python's `platform.win32_ver()` hung in a WMI query.
+The validation helper now patches `platform.win32_ver()` before importing
+`soundcard`, and `windows-audio-preflight.ps1` accepts an explicit `-PythonExe`
+so the preflight can avoid problematic default Python launchers.
+
+For the successful run, `soundcard` was loaded from a locally unpacked pure
+Python wheel under:
 
 ```text
-X:\mixxx_test\ableton-link-peer-tools\logs\audio_preflight\20260619-024834\audio-preflight-summary.json
+X:\mixxx_test\ableton-link-peer-tools\vendor\python
 ```
-
-Summary from that completed run:
-
-- WASAPI loopback through Python `soundcard`: unavailable.
-- DirectShow capture devices detected: `Microphone (BlackShark V3 - Chat)` and
-  `Microphone (Steam Streaming Microphone)`.
-- Best readable capture path: `Microphone (BlackShark V3 - Chat)`.
-- Playback signal detection: no clear playback signal (`0.01 dB` RMS increase,
-  `0` transients).
-
-Additional `soundcard` install/query attempts through the local Python launchers
-timed out while importing or querying audio devices. The timed-out Python
-processes started during the validation window were stopped.
-
-Conclusion: automated loopback evidence is not currently available on this
-Windows environment without fixing Python WASAPI loopback enumeration or adding
-a known-good virtual/physical loopback capture route. This does not invalidate
-the Link engine tests; it leaves real audio capture as a manual validation item.
 
 ## Automated coverage still missing
 

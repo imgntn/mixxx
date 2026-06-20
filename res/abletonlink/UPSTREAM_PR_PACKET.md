@@ -138,15 +138,16 @@ python -m pip install --user soundcard
 Observed earlier local result with audio preflight:
 
 ```text
-WASAPI loopback unavailable through Python soundcard.
-DirectShow microphone capture did not detect default-output playback signal.
+WASAPI loopback: DELL S3422DWG (NVIDIA High Definition Audio)
+signal-and-transients-detected
 ```
 
-The latest automated audio-preflight attempt timed out before capture summary
-generation after creating the click-test WAV. This environment therefore still
-needs either a known-good WASAPI/virtual/physical loopback route or manual
-audible confirmation for final audio evidence. This does not replace musical
-alignment checks for ASIO paths that bypass Windows loopback.
+The Python `soundcard` import path needed a validation-tool workaround because
+Python's `platform.win32_ver()` can hang on this machine while querying WMI. The
+preflight helper now patches that version query before importing `soundcard`.
+This validates that the local Windows shared-output path can be captured for
+evidence. It does not replace musical alignment checks for ASIO paths that
+bypass Windows loopback.
 
 ## Manual Validation Areas
 
