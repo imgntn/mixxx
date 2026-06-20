@@ -342,8 +342,8 @@
                   <Template src="skin:left_2state_button.xml">
                     <SetVariable name="TooltipId">ableton_link_start_stop_sync</SetVariable>
                     <SetVariable name="ObjectName">AbletonLinkStartStopButton</SetVariable>
-                    <SetVariable name="MinimumSize">70,22</SetVariable>
-                    <SetVariable name="MaximumSize">70,22</SetVariable>
+                    <SetVariable name="MinimumSize">82,22</SetVariable>
+                    <SetVariable name="MaximumSize">82,22</SetVariable>
                     <SetVariable name="SizePolicy">f,f</SetVariable>
                     <SetVariable name="state_0_text">Start/Stop</SetVariable>
                     <SetVariable name="state_1_text">Start/Stop</SetVariable>
@@ -353,8 +353,8 @@
                   <PushButton>
                     <TooltipId>ableton_link_quantized_launch</TooltipId>
                     <ObjectName>AbletonLinkLaunchButton</ObjectName>
-                    <MinimumSize>54,22</MinimumSize>
-                    <MaximumSize>54,22</MaximumSize>
+                    <MinimumSize>62,22</MinimumSize>
+                    <MaximumSize>62,22</MaximumSize>
                     <SizePolicy>f,f</SizePolicy>
                     <NumberStates>1</NumberStates>
                     <State>

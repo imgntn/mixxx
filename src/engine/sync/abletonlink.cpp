@@ -797,6 +797,7 @@ void AbletonLink::setLinkAudioEnabled(bool enabled) {
     m_pLink->enableLinkAudio(effectiveEnabled);
 #endif
     if (!effectiveEnabled) {
+        setLinkAudioSourcesEnabled(false);
         setLinkAudioReceiveEnabled(false);
     }
     m_pLinkAudioButton->forceSet(effectiveEnabled ? 1.0 : 0.0);

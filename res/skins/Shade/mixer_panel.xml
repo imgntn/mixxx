@@ -708,7 +708,7 @@
               <WidgetGroup>
                 <ObjectName>AbletonLinkPanel</ObjectName>
                 <Pos>8,0</Pos>
-                <Size>188f,18f</Size>
+                <Size>222f,18f</Size>
               </WidgetGroup>
 
               <PushButton>
@@ -774,7 +774,7 @@
                   <Pressed></Pressed>
                   <Unpressed></Unpressed>
                 </State>
-                <Size>54f,18f</Size>
+                <Size>70f,18f</Size>
                 <Pos>94,0</Pos>
                 <Connection>
                   <ConfigKey>[AbletonLink],start_stop_sync_enabled</ConfigKey>
@@ -791,8 +791,8 @@
                   <Pressed></Pressed>
                   <Unpressed></Unpressed>
                 </State>
-                <Size>42f,18f</Size>
-                <Pos>151,0</Pos>
+                <Size>54f,18f</Size>
+                <Pos>167,0</Pos>
                 <Connection>
                   <ConfigKey>[AbletonLink],quantized_launch</ConfigKey>
                 </Connection>

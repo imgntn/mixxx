@@ -827,7 +827,11 @@ void EngineMixer::process(const std::size_t bufferSize) {
         m_main.clear(bufferSize);
     }
     m_pEngineSync->publishLinkAudioMainOutput(m_main.data(), bufferSize, m_sampleRate);
-    m_pEngineSync->mixInboundLinkAudioMainOutput(m_main.data(), bufferSize, m_sampleRate);
+    if (mainEnabled) {
+        m_pEngineSync->mixInboundLinkAudioMainOutput(m_main.data(), bufferSize, m_sampleRate);
+    } else {
+        m_pEngineSync->mixInboundLinkAudioMainOutput(nullptr, 0, m_sampleRate);
+    }
     if (headphoneEnabled) {
         m_pHeadDelay->process(m_head.data(), bufferSize);
     }

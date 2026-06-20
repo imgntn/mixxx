@@ -3579,6 +3579,16 @@ TEST_F(EngineSyncTest, AbletonLinkAudioControlsReflectBuildCapability) {
             outputBuffer.data(),
             outputBuffer.size(),
             mixxx::audio::SampleRate(48000));
+    m_pEngineSync->mixInboundLinkAudioMainOutput(
+            outputBuffer.data(),
+            outputBuffer.size(),
+            mixxx::audio::SampleRate(48000));
+
+    ControlObject::set(ConfigKey("[AbletonLink]", "link_audio_enabled"), 0.0);
+    EXPECT_DOUBLE_EQ(0.0,
+            ControlObject::get(ConfigKey("[AbletonLink]", "link_audio_sources_enabled")));
+    EXPECT_DOUBLE_EQ(0.0,
+            ControlObject::get(ConfigKey("[AbletonLink]", "link_audio_receive_enabled")));
 #else
     EXPECT_DOUBLE_EQ(0.0,
             ControlObject::get(ConfigKey("[AbletonLink]", "link_audio_available")));
@@ -4285,6 +4295,10 @@ TEST_F(EngineSyncTest, LinkAudioCallbackChurnKeepsStateFinite) {
 #ifdef MIXXX_ABLETON_LINK_AUDIO
         std::array<CSAMPLE, 2048> outputBuffer{};
         m_pEngineSync->publishLinkAudioMainOutput(
+                outputBuffer.data(),
+                bufferSize,
+                sampleRate);
+        m_pEngineSync->mixInboundLinkAudioMainOutput(
                 outputBuffer.data(),
                 bufferSize,
                 sampleRate);

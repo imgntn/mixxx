@@ -3216,11 +3216,11 @@ if(WIN32)
 endif()
 
 # Ableton Link
-option(ABLETONLINK "Support Ableton Link tempo synchronization" ON)
+option(ABLETONLINK "Support Ableton Link tempo synchronization" OFF)
 cmake_dependent_option(
   FETCH_ABLETONLINK
   "Download Ableton Link during configure if no system package is found"
-  ON
+  OFF
   "ABLETONLINK"
   OFF
 )
@@ -3246,8 +3246,17 @@ if(ABLETONLINK)
       GIT_REPOSITORY https://github.com/Ableton/link.git
       GIT_TAG Link-4.0
     )
-    FetchContent_MakeAvailable(AbletonLink)
-
+    FetchContent_GetProperties(AbletonLink)
+    if(NOT abletonlink_POPULATED)
+      if(POLICY CMP0169)
+        cmake_policy(PUSH)
+        cmake_policy(SET CMP0169 OLD)
+      endif()
+      FetchContent_Populate(AbletonLink)
+      if(POLICY CMP0169)
+        cmake_policy(POP)
+      endif()
+    endif()
     include(${abletonlink_SOURCE_DIR}/AbletonLinkConfig.cmake)
     # AbletonLinkConfig.cmake sets CMAKE_CXX_STANDARD for its examples and
     # support targets. Keep Mixxx targets on the project-wide standard.

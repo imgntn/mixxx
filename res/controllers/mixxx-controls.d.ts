@@ -9,6 +9,11 @@ declare namespace MixxxControls {
         | '[App]'
 
         /**
+         * The [AbletonLink] group contains controls for Ableton Link tempo, transport, and Link Audio integration.
+         */
+        | '[AbletonLink]'
+
+        /**
          * The [AutoDJ] controls allow interacting with AutoDJ.
          */
         | '[AutoDJ]'
@@ -172,6 +177,7 @@ declare namespace MixxxControls {
 
     // Read/Write controls
     type Controls = {
+        '[AbletonLink]': AbletonLinkControl;
         '[App]': AppControl;
         '[AutoDJ]': AutoDJControl;
         '[Controls]': ControlsControl;
@@ -261,6 +267,88 @@ declare namespace MixxxControls {
          * Increases the value by smaller step, sets the speed one small step higher (1 % default)
          */
         | '_up_small';
+
+    type AbletonLinkControl =
+        /**
+         * Join or leave the current Ableton Link session.
+         *
+         * @groups [AbletonLink]
+         * @range binary
+         * @feedback Ableton Link enabled state
+         */
+        | 'sync_enabled'
+
+        /**
+         * Follow Ableton Link transport start and stop messages.
+         *
+         * @groups [AbletonLink]
+         * @range binary
+         * @feedback Ableton Link Start/Stop Sync state
+         */
+        | 'start_stop_sync_enabled'
+
+        /**
+         * Enable Ableton Link Audio discovery and publish Mixxx's main output when available.
+         *
+         * @groups [AbletonLink]
+         * @range binary
+         * @feedback Ableton Link Audio enabled state
+         */
+        | 'link_audio_enabled'
+
+        /**
+         * Publish active Mixxx sources as separate Ableton Link Audio channels.
+         *
+         * @groups [AbletonLink]
+         * @range binary
+         * @feedback Ableton Link Audio source publishing state
+         */
+        | 'link_audio_sources_enabled'
+
+        /**
+         * Mix remote Ableton Link Audio channels into Mixxx's main output.
+         *
+         * @groups [AbletonLink]
+         * @range binary
+         * @feedback Ableton Link Audio receive state
+         */
+        | 'link_audio_receive_enabled'
+
+        /**
+         * Mute received Ableton Link Audio while keeping subscriptions active.
+         *
+         * @groups [AbletonLink]
+         * @range binary
+         * @feedback Ableton Link Audio receive mute state
+         */
+        | 'link_audio_receive_muted'
+
+        /**
+         * Gain applied to received Ableton Link Audio.
+         *
+         * @groups [AbletonLink]
+         * @range 0.0..1.0..2.0
+         * @feedback Ableton Link Audio receive gain
+         */
+        | 'link_audio_receive_gain'
+
+        /**
+         * Start Link transport and synced Mixxx decks on the selected launch quantum.
+         *
+         * @groups [AbletonLink]
+         * @range binary
+         * @feedback Momentary launch command
+         */
+        | 'quantized_launch'
+
+        /**
+         * Beat grid used by Ableton Link Quantized Launch.
+         *
+         * @groups [AbletonLink]
+         * @range 1, 2, 4, or 8 beats
+         * @feedback Selected quantized launch grid
+         */
+        | 'launch_quantum';
 
     type AppControl =
         /**
@@ -3764,6 +3852,7 @@ declare namespace MixxxControls {
     namespace ReadOnly {
         // Read-only controls
         type ReadOnlyControls = {
+            '[AbletonLink]': ReadOnly.ReadOnlyAbletonLinkControl;
             '[App]': ReadOnly.ReadOnlyAppControl;
             '[EffectRack1]': ReadOnly.ReadOnlyEffectRack1Control;
             '[EqualizerRack1]': ReadOnly.ReadOnlyEqualizerRack1Control;
@@ -3785,6 +3874,167 @@ declare namespace MixxxControls {
             [key: `[QuickEffectRack1_[Channel${number}_Stem${number}]_Effect1]`]: ReadOnly.ReadOnlyQuickEffectRack1ChannelIStemJEffect1Control;
             [key: `[Sampler${number}]`]: ReadOnly.ReadOnlySamplerNControl;
         };
+        type ReadOnlyAbletonLinkControl =
+            /**
+             * Effective Ableton Link engine state.
+             *
+             * @groups [AbletonLink]
+             * @range binary
+             * @feedback Ableton Link enabled state
+             * @readonly
+             */
+            | 'enabled'
+
+            /**
+             * Whether this Mixxx build includes Ableton Link Audio support.
+             *
+             * @groups [AbletonLink]
+             * @range binary
+             * @feedback Ableton Link Audio build capability
+             * @readonly
+             */
+            | 'link_audio_available'
+
+            /**
+             * Number of discovered Ableton Link Audio channels.
+             *
+             * @groups [AbletonLink]
+             * @range integer
+             * @feedback Ableton Link Audio channel count
+             * @readonly
+             */
+            | 'link_audio_num_channels'
+
+            /**
+             * Number of remote Ableton Link Audio channels subscribed for receive.
+             *
+             * @groups [AbletonLink]
+             * @range integer
+             * @feedback Ableton Link Audio receive channel count
+             * @readonly
+             */
+            | 'link_audio_receive_num_channels'
+
+            /**
+             * Whether received Ableton Link Audio is currently being mixed into the main output.
+             *
+             * @groups [AbletonLink]
+             * @range binary
+             * @feedback Ableton Link Audio receive activity
+             * @readonly
+             */
+            | 'link_audio_receive_active'
+
+            /**
+             * Number of connected Ableton Link peers.
+             *
+             * @groups [AbletonLink]
+             * @range integer
+             * @feedback Ableton Link peer count
+             * @readonly
+             */
+            | 'num_peers'
+
+            /**
+             * Current Ableton Link session tempo.
+             *
+             * @groups [AbletonLink]
+             * @range positive value
+             * @feedback Ableton Link session BPM
+             * @readonly
+             */
+            | 'bpm'
+
+            /**
+             * Current Ableton Link beat phase within the Mixxx sync quantum.
+             *
+             * @groups [AbletonLink]
+             * @range 0.0..1.0
+             * @feedback Ableton Link beat phase
+             * @readonly
+             */
+            | 'beat_distance'
+
+            /**
+             * Beat-sync quantum used by Mixxx deck sync.
+             *
+             * @groups [AbletonLink]
+             * @range positive value
+             * @feedback Ableton Link beat-sync quantum
+             * @readonly
+             */
+            | 'quantum'
+
+            /**
+             * Current Ableton Link start/stop playing state.
+             *
+             * @groups [AbletonLink]
+             * @range binary
+             * @feedback Ableton Link playing state
+             * @readonly
+             */
+            | 'playing'
+
+            /**
+             * Measured callback-to-output latency used for Link timing, in microseconds.
+             *
+             * @groups [AbletonLink]
+             * @range integer
+             * @feedback Ableton Link timing latency
+             * @readonly
+             */
+            | 'output_latency_micros'
+
+            /**
+             * Whether Link timing is using the host-time filter for audio callback timestamps.
+             *
+             * @groups [AbletonLink]
+             * @range binary
+             * @feedback Ableton Link host-time filter state
+             * @readonly
+             */
+            | 'host_time_filter_enabled'
+
+            /**
+             * Ableton Link clock time of the next beat, in microseconds.
+             *
+             * @groups [AbletonLink]
+             * @range integer
+             * @feedback Ableton Link next beat time
+             * @readonly
+             */
+            | 'next_beat_time_micros'
+
+            /**
+             * Time until the next Ableton Link beat, in microseconds.
+             *
+             * @groups [AbletonLink]
+             * @range integer
+             * @feedback Ableton Link next beat ETA
+             * @readonly
+             */
+            | 'next_beat_eta_micros'
+
+            /**
+             * Scheduled Ableton Link quantized launch time, in microseconds.
+             *
+             * @groups [AbletonLink]
+             * @range integer
+             * @feedback Ableton Link quantized launch time
+             * @readonly
+             */
+            | 'quantized_launch_time_micros'
+
+            /**
+             * Time until the scheduled Ableton Link quantized launch, in microseconds.
+             *
+             * @groups [AbletonLink]
+             * @range integer
+             * @feedback Ableton Link quantized launch ETA
+             * @readonly
+             */
+            | 'quantized_launch_eta_micros';
+
         type ReadOnlyAppControl =
             /**
              * A throttled timer that provides the time elapsed in seconds since Mixxx was started.

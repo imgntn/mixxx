@@ -173,7 +173,7 @@
           <Template src="skin:/controls/button_2state_persist.xml">
             <SetVariable name="TooltipId">ableton_link_start_stop_sync</SetVariable>
             <SetVariable name="ObjectName">AbletonLinkStartStopButton</SetVariable>
-            <SetVariable name="Size">62f,20f</SetVariable>
+            <SetVariable name="Size">74f,20f</SetVariable>
             <SetVariable name="state_0_text">Start/Stop</SetVariable>
             <SetVariable name="state_1_text">Start/Stop</SetVariable>
             <SetVariable name="ConfigKey">[AbletonLink],start_stop_sync_enabled</SetVariable>
@@ -181,7 +181,7 @@
           <PushButton>
             <TooltipId>ableton_link_quantized_launch</TooltipId>
             <ObjectName>AbletonLinkLaunchButton</ObjectName>
-            <Size>46f,20f</Size>
+            <Size>56f,20f</Size>
             <NumberStates>1</NumberStates>
             <State>
               <Number>0</Number>

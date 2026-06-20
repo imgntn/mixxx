@@ -9,9 +9,9 @@ observe and control the session.
 
 Ableton Link support is controlled by these CMake options:
 
-- `ABLETONLINK`: build Mixxx with Ableton Link support. Defaults to `ON`.
+- `ABLETONLINK`: build Mixxx with Ableton Link support. Defaults to `OFF`.
 - `FETCH_ABLETONLINK`: download Ableton Link during configure if no system
-  package is found. Defaults to `ON` when `ABLETONLINK` is enabled.
+  package is found. Defaults to `OFF`.
 
 Distribution builds should normally set `FETCH_ABLETONLINK=OFF` and provide
 Ableton Link through the package manager:
@@ -20,7 +20,7 @@ Ableton Link through the package manager:
 cmake -DABLETONLINK=ON -DFETCH_ABLETONLINK=OFF ..
 ```
 
-Local validation builds may use the default fetch path for Link 4.0 headers:
+Local validation builds may explicitly use the fetch path for Link 4.0 headers:
 
 ```shell
 cmake -DABLETONLINK=ON -DFETCH_ABLETONLINK=ON ..
@@ -43,7 +43,7 @@ Default skins expose compact Link controls in the main toolbar or mixer area:
 - `Link`: joins or leaves the Link session.
 - peer count: shows the number of other Link peers.
 - BPM: shows the current Link session tempo.
-- `SS`: enables or disables Link Start/Stop Sync.
+- `Start/Stop`: enables or disables Link Start/Stop Sync.
 - `Launch`: starts Link transport and synced Mixxx decks on the selected launch
   quantum.
 

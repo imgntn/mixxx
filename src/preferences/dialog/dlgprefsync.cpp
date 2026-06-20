@@ -236,8 +236,11 @@ void DlgPrefSync::slotSetStartStopSyncEnabled(bool enabled) {
 void DlgPrefSync::slotSetLinkAudioEnabled(bool enabled) {
     m_pendingLinkAudioEnabled = enabled;
     if (!enabled) {
+        m_pendingLinkAudioSourcesEnabled = false;
         m_pendingLinkAudioReceiveEnabled = false;
+        const QSignalBlocker sourcesBlocker(CheckBoxLinkAudioSources);
         const QSignalBlocker receiveBlocker(CheckBoxLinkAudioReceive);
+        CheckBoxLinkAudioSources->setChecked(false);
         CheckBoxLinkAudioReceive->setChecked(false);
     }
     const bool linkAudioAvailable = controlsAvailable() &&
@@ -304,8 +307,8 @@ void DlgPrefSync::setPendingState(
     m_pendingLinkEnabled = linkEnabled;
     m_pendingStartStopSyncEnabled = startStopSyncEnabled;
     m_pendingLinkAudioEnabled = linkAudioEnabled;
-    m_pendingLinkAudioSourcesEnabled = linkAudioSourcesEnabled;
-    m_pendingLinkAudioReceiveEnabled = linkAudioReceiveEnabled;
+    m_pendingLinkAudioSourcesEnabled = linkAudioEnabled && linkAudioSourcesEnabled;
+    m_pendingLinkAudioReceiveEnabled = linkAudioEnabled && linkAudioReceiveEnabled;
     m_pendingLinkAudioReceiveMuted = linkAudioReceiveMuted;
     m_pendingLinkAudioReceiveGain = std::clamp(linkAudioReceiveGain, 0.0, 2.0);
     m_pendingLaunchQuantum = launchQuantum;

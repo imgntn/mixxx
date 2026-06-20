@@ -131,9 +131,11 @@ Linux:
 - Link Audio support is detected from headers with
   `__has_include(<ableton/LinkAudio.hpp>)`, so classic Link builds can still
   compile against older system packages.
-- `FETCH_ABLETONLINK` defaults to `ON` for clean local developer builds.
-  Distribution builds should set it to `OFF` and provide Ableton Link through
-  the package manager.
+- `ABLETONLINK` and `FETCH_ABLETONLINK` default to `OFF` so normal configure
+  runs do not add a new required package or fetch from the network. Local
+  developer builds that need Link 4.0 headers can set both to `ON`;
+  distribution builds should keep fetching `OFF` and provide Ableton Link
+  through the package manager.
 - Engine publishing and receiving paths depend on Mixxx's normal audio callback
   buffers, not WASAPI, CoreAudio, ALSA, JACK, PulseAudio, or PipeWire APIs.
 - QProcess-based external peer tests redirect output through
