@@ -8,9 +8,11 @@
 #include <QThread>
 
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <memory>
 #include <string>
+#include <thread>
 
 #include "control/controlobject.h"
 #include "engine/controls/bpmcontrol.h"
@@ -4289,6 +4291,68 @@ TEST_F(EngineSyncTest, LinkAudioCallbackChurnKeepsStateFinite) {
         processQtEvents();
         expectAbletonLinkStatusControlsAreFinite();
     }
+#endif
+}
+
+TEST_F(EngineSyncTest, LinkAudioPublishSnapshotSurvivesControlChurn) {
+#ifndef __ABLETONLINK__
+    GTEST_SKIP() << "Ableton Link support is disabled in this build";
+#elif !defined(MIXXX_ABLETON_LINK_AUDIO)
+    GTEST_SKIP() << "Link Audio support is disabled in this build";
+#else
+    ControlObject::set(ConfigKey("[AbletonLink]", "sync_enabled"), 1.0);
+    ControlObject::set(ConfigKey("[AbletonLink]", "link_audio_enabled"), 1.0);
+    ControlObject::set(ConfigKey("[AbletonLink]", "link_audio_sources_enabled"), 1.0);
+    m_pEngineSync->registerLinkAudioOutput(
+            QStringLiteral("[Channel1]"),
+            QStringLiteral("Mixxx Deck 1"));
+    m_pEngineSync->registerLinkAudioOutput(
+            QStringLiteral("[Sampler1]"),
+            QStringLiteral("Mixxx Sampler 1"));
+
+    std::array<CSAMPLE, 512> outputBuffer{};
+    std::atomic_bool stop{false};
+    std::atomic_int publishCount{0};
+    std::thread publisher([&]() {
+        while (!stop.load(std::memory_order_acquire)) {
+            m_pEngineSync->publishLinkAudioMainOutput(
+                    outputBuffer.data(),
+                    outputBuffer.size(),
+                    mixxx::audio::SampleRate(48000));
+            m_pEngineSync->publishLinkAudioOutput(
+                    QStringLiteral("[Channel1]"),
+                    outputBuffer.data(),
+                    outputBuffer.size(),
+                    mixxx::audio::SampleRate(48000));
+            m_pEngineSync->publishLinkAudioOutput(
+                    QStringLiteral("[Sampler1]"),
+                    outputBuffer.data(),
+                    outputBuffer.size(),
+                    mixxx::audio::SampleRate(48000));
+            publishCount.fetch_add(1, std::memory_order_release);
+        }
+    });
+
+    for (int i = 0; i < 300; ++i) {
+        SCOPED_TRACE(QString("iteration %1").arg(i).toStdString());
+        ControlObject::set(
+                ConfigKey("[AbletonLink]", "link_audio_sources_enabled"),
+                (i % 2) == 0 ? 1.0 : 0.0);
+        ControlObject::set(
+                ConfigKey("[AbletonLink]", "link_audio_enabled"),
+                (i % 3) == 0 ? 0.0 : 1.0);
+        ControlObject::set(
+                ConfigKey("[AbletonLink]", "sync_enabled"),
+                (i % 5) == 0 ? 0.0 : 1.0);
+        processQtEvents();
+        expectAbletonLinkStatusControlsAreFinite();
+    }
+
+    stop.store(true, std::memory_order_release);
+    publisher.join();
+    EXPECT_GT(publishCount.load(std::memory_order_acquire), 0);
+
+    ControlObject::set(ConfigKey("[AbletonLink]", "sync_enabled"), 0.0);
 #endif
 }
 

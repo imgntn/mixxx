@@ -11,16 +11,16 @@ Ableton Link support is controlled by these CMake options:
 
 - `ABLETONLINK`: build Mixxx with Ableton Link support. Defaults to `ON`.
 - `FETCH_ABLETONLINK`: download Ableton Link during configure if no system
-  package is found. Defaults to `OFF`.
+  package is found. Defaults to `ON` when `ABLETONLINK` is enabled.
 
-Distribution builds should normally use the default `FETCH_ABLETONLINK=OFF`
-path and provide Ableton Link through the package manager:
+Distribution builds should normally set `FETCH_ABLETONLINK=OFF` and provide
+Ableton Link through the package manager:
 
 ```shell
 cmake -DABLETONLINK=ON -DFETCH_ABLETONLINK=OFF ..
 ```
 
-Local validation builds may opt into fetching Link 4.0 headers:
+Local validation builds may use the default fetch path for Link 4.0 headers:
 
 ```shell
 cmake -DABLETONLINK=ON -DFETCH_ABLETONLINK=ON ..

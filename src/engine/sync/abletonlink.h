@@ -253,8 +253,9 @@ class AbletonLink : public QObject, public Syncable {
     struct LinkAudioOutput {
         QString group;
         QString name;
-        std::unique_ptr<ableton::LinkAudioSink> pSink;
+        std::shared_ptr<ableton::LinkAudioSink> pSink;
     };
+    using LinkAudioOutputSnapshot = std::vector<LinkAudioOutput>;
     struct LinkAudioInput {
         struct Buffer {
             std::array<CSAMPLE, kMaxEngineSamples> samples{};
@@ -290,6 +291,7 @@ class AbletonLink : public QObject, public Syncable {
         std::atomic_size_t queued{0};
     };
     std::vector<LinkAudioOutput> m_linkAudioOutputs;
+    std::atomic<std::shared_ptr<LinkAudioOutputSnapshot>> m_linkAudioOutputSnapshot;
     std::atomic<std::shared_ptr<std::vector<std::shared_ptr<LinkAudioInput>>>> m_linkAudioInputs;
 #endif
 #endif

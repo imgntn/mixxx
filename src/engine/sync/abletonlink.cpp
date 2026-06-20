@@ -206,7 +206,7 @@ bool AbletonLink::LinkAudioInput::mixInto(
             break;
         }
 
-        if (targetEndBeat >= *beginBeat && targetEndBeat < *endBeat) {
+        if (targetEndBeat >= *beginBeat && targetEndBeat <= *endBeat) {
             totalSourceFrames += linearInterpolate(
                     targetEndBeat,
                     *beginBeat,
@@ -303,6 +303,7 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
           m_audioSessionState(),
 #ifdef MIXXX_ABLETON_LINK_AUDIO
           m_linkAudioOutputs(),
+          m_linkAudioOutputSnapshot(std::make_shared<LinkAudioOutputSnapshot>()),
           m_linkAudioInputs(std::make_shared<std::vector<std::shared_ptr<LinkAudioInput>>>()),
 #endif
 #endif
@@ -538,6 +539,13 @@ AbletonLink::~AbletonLink() {
     m_pLink->setTempoCallback([](double) {});
 #ifdef MIXXX_ABLETON_LINK_AUDIO
     m_pLink->setChannelsChangedCallback([]() {});
+    m_linkAudioOutputSnapshot.store(
+            std::make_shared<LinkAudioOutputSnapshot>(),
+            std::memory_order_release);
+    m_linkAudioOutputs.clear();
+    m_linkAudioInputs.store(
+            std::make_shared<std::vector<std::shared_ptr<LinkAudioInput>>>(),
+            std::memory_order_release);
 #endif
     m_pLink->setStartStopCallback([](bool) {});
     m_pLink->enable(false);
@@ -1059,9 +1067,7 @@ void AbletonLink::registerLinkAudioOutput(const QString& group, const QString& n
         if (output.group == group) {
             if (output.name != name) {
                 output.name = name;
-                if (output.pSink) {
-                    output.pSink->setName(name.toStdString());
-                }
+                output.pSink.reset();
             }
             updateLinkAudioOutputSinks();
             return;
@@ -1093,10 +1099,15 @@ void AbletonLink::publishLinkAudioOutput(
         return;
     }
 
-    ableton::LinkAudioSink* pSink = nullptr;
-    for (auto& output : m_linkAudioOutputs) {
+    const auto outputs = m_linkAudioOutputSnapshot.load(std::memory_order_acquire);
+    if (!outputs) {
+        return;
+    }
+
+    std::shared_ptr<ableton::LinkAudioSink> pSink;
+    for (const auto& output : *outputs) {
         if (output.group == group) {
-            pSink = output.pSink.get();
+            pSink = output.pSink;
             break;
         }
     }
@@ -1196,16 +1207,17 @@ void AbletonLink::updateLinkAudioOutputSinks() {
         const bool isMainOutput = output.group == QStringLiteral("[Main]");
         const bool shouldPublish = canPublish && (isMainOutput || publishSources);
         if (shouldPublish && !output.pSink) {
-            output.pSink = std::make_unique<ableton::LinkAudioSink>(
+            output.pSink = std::make_shared<ableton::LinkAudioSink>(
                     *m_pLink,
                     output.name.toStdString(),
                     kMaxEngineSamples);
         } else if (!shouldPublish && output.pSink) {
             output.pSink.reset();
-        } else if (shouldPublish && output.pSink) {
-            output.pSink->setName(output.name.toStdString());
         }
     }
+    m_linkAudioOutputSnapshot.store(
+            std::make_shared<LinkAudioOutputSnapshot>(m_linkAudioOutputs),
+            std::memory_order_release);
 #endif
 }
 
