@@ -67,6 +67,7 @@ When `FETCH_ABLETONLINK=OFF`, the build expects a system package exposing
 Detailed architecture notes are in:
 
 ```text
+res/abletonlink/AUTOMATED_VALIDATION_RESULTS.md
 res/abletonlink/DEVELOPER_NOTES.md
 ```
 
@@ -87,11 +88,24 @@ build\x64__abletonlink\mixxx-test.exe --gtest_filter=EngineSyncTest.*Link* --gte
 Observed local result:
 
 ```text
-43 passed, 1 skipped
+45 passed, 1 skipped
 ```
 
 The skipped test is the optional external peer test when
 `MIXXX_LINK_PEER_EXE` is not set.
+
+The Link 4.0 / LinkAudio build was also built and tested with the same filter:
+
+```powershell
+$env:QT_QPA_PLATFORM_PLUGIN_PATH = "X:\mixxx_test\mixxx\build\x64__abletonlink\platforms"
+build\x64__abletonlink4\mixxx-test.exe --gtest_filter=EngineSyncTest.*Link* --gtest_color=no
+```
+
+Observed local result:
+
+```text
+45 passed, 1 skipped
+```
 
 External peer test:
 
@@ -106,6 +120,9 @@ Observed local result:
 1 passed
 ```
 
+The Link 4.0 / LinkAudio build also passed the same external peer test when run
+sequentially against the Link 4 peer harness.
+
 For other machines, set `MIXXX_LINK_PEER_EXE` to the local path of LinkHut or a
 compatible local Link peer harness.
 
@@ -118,16 +135,18 @@ python -m pip install --user soundcard
 .\res\abletonlink\windows-audio-preflight.ps1
 ```
 
-Observed local result with WASAPI loopback:
+Observed earlier local result with audio preflight:
 
 ```text
-WASAPI loopback: DELL S3422DWG (NVIDIA High Definition Audio)
-signal-and-transients-detected
+WASAPI loopback unavailable through Python soundcard.
+DirectShow microphone capture did not detect default-output playback signal.
 ```
 
-This validates that the local Windows output path can be captured for evidence.
-It does not replace musical alignment checks for ASIO paths that bypass Windows
-loopback.
+The latest automated audio-preflight attempt timed out before capture summary
+generation after creating the click-test WAV. This environment therefore still
+needs either a known-good WASAPI/virtual/physical loopback route or manual
+audible confirmation for final audio evidence. This does not replace musical
+alignment checks for ASIO paths that bypass Windows loopback.
 
 ## Manual Validation Areas
 

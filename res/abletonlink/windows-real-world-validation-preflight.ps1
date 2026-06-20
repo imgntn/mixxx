@@ -35,27 +35,68 @@ function Set-Checked {
 
 function Get-ProcessSummary {
     $names = @("mixxx.exe", "mixxx-test.exe", "mixxx-link-peer.exe", "Ableton Live.exe")
-    $processes = Get-CimInstance Win32_Process |
-        Where-Object { $names -contains $_.Name } |
-        Select-Object ProcessId, Name, CommandLine
+    $processes = Get-Process -ErrorAction SilentlyContinue |
+        Where-Object { $names -contains "$($_.ProcessName).exe" } |
+        Select-Object Id, ProcessName, Path
     if (!$processes) {
         return "No Mixxx, mixxx-test, mixxx-link-peer, or Ableton Live processes detected."
     }
     return ($processes | ForEach-Object {
-        "PID $($_.ProcessId): $($_.Name) $($_.CommandLine)"
+        "PID $($_.Id): $($_.ProcessName).exe $($_.Path)"
     }) -join "`n"
 }
 
-function Get-AudioDeviceSummary {
-    $devices = Get-CimInstance Win32_SoundDevice -ErrorAction SilentlyContinue |
-        Sort-Object Name |
-        Select-Object Name, Manufacturer, Status
-    if (!$devices) {
-        return "No Win32_SoundDevice entries detected."
+function Invoke-JobWithTimeout {
+    param(
+        [scriptblock]$ScriptBlock,
+        [int]$TimeoutSeconds = 10,
+        [string]$TimeoutMessage = "Timed out."
+    )
+    $job = Start-Job -ScriptBlock $ScriptBlock
+    try {
+        if (Wait-Job -Job $job -Timeout $TimeoutSeconds) {
+            return Receive-Job -Job $job
+        }
+        return $TimeoutMessage
+    } finally {
+        Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
     }
-    return ($devices | ForEach-Object {
-        "$($_.Name) | $($_.Manufacturer) | $($_.Status)"
-    }) -join "`n"
+}
+
+function Get-AudioDeviceSummary {
+    $summary = Invoke-JobWithTimeout -TimeoutSeconds 10 -TimeoutMessage "Timed out while querying FFmpeg DirectShow audio devices." -ScriptBlock {
+        $oldErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        $output = & ffmpeg -hide_banner -list_devices true -f dshow -i dummy 2>&1
+        $ErrorActionPreference = $oldErrorActionPreference
+        $devices = @()
+        foreach ($line in $output) {
+            if ($line -match '"(.+)" \(audio\)') {
+                $devices += $Matches[1]
+            }
+        }
+        if ($devices.Count -eq 0) {
+            return "No FFmpeg DirectShow audio capture devices detected."
+        }
+        return ($devices | ForEach-Object { "DirectShow capture: $_" }) -join "`n"
+    }
+    return ($summary -join "`n")
+}
+
+function Get-WindowsVersionSummary {
+    try {
+        $version = Get-ItemProperty -LiteralPath "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
+        $build = "$($version.CurrentBuildNumber)"
+        if ($null -ne $version.UBR) {
+            $build = "$build.$($version.UBR)"
+        }
+        return "$($version.ProductName) $($version.DisplayVersion) build $build"
+    } catch {
+        return Invoke-JobWithTimeout -TimeoutSeconds 10 -TimeoutMessage "Timed out while querying Win32_OperatingSystem." -ScriptBlock {
+            $os = Get-CimInstance Win32_OperatingSystem
+            "$($os.Caption) $($os.Version) build $($os.BuildNumber)"
+        }
+    }
 }
 
 function Get-AsioDriverSummary {
@@ -127,7 +168,7 @@ try {
     Pop-Location
 }
 
-$os = Get-CimInstance Win32_OperatingSystem
+$osSummary = Get-WindowsVersionSummary
 $processSummary = Get-ProcessSummary
 $audioSummary = Get-AudioDeviceSummary
 $asioSummary = Get-AsioDriverSummary
@@ -140,7 +181,7 @@ $state = @{
     evidence = @{}
     meta = @{
         mixxxCommit = "$commit ($branch)"
-        windowsVersion = "$($os.Caption) $($os.Version) build $($os.BuildNumber)"
+        windowsVersion = "$osSummary"
         audioInterface = "Detected devices:`n$audioSummary"
         asioDriver = "Detected ASIO registry entries:`n$asioSummary"
         network = "Preflight did not change network state."
@@ -176,7 +217,7 @@ Add-Note -State $state -TaskId "s1-t1" -Note "ASIO drivers detected in registry:
 Add-Note -State $state -TaskId "s6-t0" -Note "Windows audio devices detected:`n$audioSummary"
 Add-Note -State $state -TaskId "s5-t0" -Note "Edited XML/UI parse preflight:`n$xmlSummary"
 Add-Note -State $state -TaskId "s9-t0" -Note "Git branch/commit:`n$branch $commit`n`nStatus:`n$status`n`nDiff check exit code: $diffCheckExit`n$($diffCheck -join "`n")"
-Add-Note -State $state -TaskId "s9-t2" -Note "$($os.Caption) $($os.Version) build $($os.BuildNumber)"
+Add-Note -State $state -TaskId "s9-t2" -Note "$osSummary"
 Add-Note -State $state -TaskId "s9-t5" -Note "Preflight output folder:`n$outputDir"
 Add-Note -State $state -TaskId "s1-t5" -Note "Link-focused automated test preflight:`n$testSummary"
 

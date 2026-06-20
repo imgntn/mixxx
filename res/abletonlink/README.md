@@ -168,6 +168,7 @@ res/abletonlink/MANUAL_VERIFICATION.md
 Developer/reviewer notes and an upstream PR validation packet are documented in:
 
 ```text
+res/abletonlink/AUTOMATED_VALIDATION_RESULTS.md
 res/abletonlink/DEVELOPER_NOTES.md
 res/abletonlink/UPSTREAM_PR_PACKET.md
 ```
