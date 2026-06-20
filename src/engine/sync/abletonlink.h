@@ -6,7 +6,9 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <vector>
 
+#include <QString>
 #include <QTimer>
 
 #ifdef __ABLETONLINK__
@@ -155,6 +157,12 @@ class AbletonLink : public QObject, public Syncable {
             std::chrono::microseconds outputLatency = std::chrono::microseconds(0),
             bool hostTimeFilterEnabled = false);
     void onCallbackEnd(int sampleRate, size_t bufferSize);
+    void registerLinkAudioOutput(const QString& group, const QString& name);
+    void publishLinkAudioOutput(
+            const QString& group,
+            const CSAMPLE* pBuffer,
+            std::size_t bufferSize,
+            mixxx::audio::SampleRate sampleRate);
     void publishLinkAudioMainOutput(
             const CSAMPLE* pBuffer,
             std::size_t bufferSize,
@@ -215,7 +223,12 @@ class AbletonLink : public QObject, public Syncable {
     double m_audioCallbackSampleTime;
     std::optional<MixxxAbletonLinkSessionState> m_audioSessionState;
 #ifdef MIXXX_ABLETON_LINK_AUDIO
-    std::unique_ptr<ableton::LinkAudioSink> m_pLinkAudioMainSink;
+    struct LinkAudioOutput {
+        QString group;
+        QString name;
+        std::unique_ptr<ableton::LinkAudioSink> pSink;
+    };
+    std::vector<LinkAudioOutput> m_linkAudioOutputs;
 #endif
 #endif
     std::unique_ptr<ControlPushButton> m_pLinkButton;

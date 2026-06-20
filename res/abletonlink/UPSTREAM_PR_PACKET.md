@@ -53,9 +53,11 @@ When `FETCH_ABLETONLINK=OFF`, the build expects a system package exposing
   separate control so larger launch grids do not leak bar-phase values into
   `EngineSync`.
 - When built with Ableton Link 4.0 headers, Mixxx uses `ableton::LinkAudio`,
-  can enable LinkAudio channel discovery, and publishes the final stereo main
-  output as a LinkAudio sink named `Mixxx Main`. Older Link headers remain
-  supported and report LinkAudio unavailable.
+  can enable LinkAudio channel discovery, publishes the final stereo main output
+  as `Mixxx Main`, and publishes active local engine sources as pre-fader
+  per-source sinks such as `Mixxx Deck 1`, `Mixxx Sampler 1`, and
+  `Mixxx Microphone 1`. Older Link headers remain supported and report
+  LinkAudio unavailable.
 
 Detailed architecture notes are in:
 

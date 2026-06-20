@@ -34,6 +34,47 @@ const QString kLegacyGroup = QStringLiteral("[Master]");
 const QString kMainGroup = QStringLiteral("[Main]");
 
 const ConfigKey kInternalClockBpmKey{QStringLiteral("[InternalClock]"), QStringLiteral("bpm")};
+
+int numberedBracketGroup(const QString& group, const QString& prefix, int defaultNumber = 0) {
+    if (!group.startsWith(prefix) || !group.endsWith(QChar(']'))) {
+        return 0;
+    }
+
+    const QString numberText = group.mid(prefix.size(), group.size() - prefix.size() - 1);
+    if (numberText.isEmpty()) {
+        return defaultNumber;
+    }
+
+    bool ok = false;
+    const int number = numberText.toInt(&ok);
+    return ok ? number : 0;
+}
+
+QString linkAudioOutputNameForChannel(const EngineChannel& channel) {
+    const QString& group = channel.getGroup();
+    int number = 0;
+    if (PlayerManager::isDeckGroup(group, &number)) {
+        return QStringLiteral("Mixxx Deck %1").arg(number);
+    }
+    if (PlayerManager::isSamplerGroup(group, &number)) {
+        return QStringLiteral("Mixxx Sampler %1").arg(number);
+    }
+    if (PlayerManager::isPreviewDeckGroup(group, &number)) {
+        return QStringLiteral("Mixxx Preview Deck %1").arg(number);
+    }
+
+    number = numberedBracketGroup(group, QStringLiteral("[Microphone"), 1);
+    if (number > 0) {
+        return QStringLiteral("Mixxx Microphone %1").arg(number);
+    }
+
+    number = numberedBracketGroup(group, QStringLiteral("[Auxiliary"));
+    if (number > 0) {
+        return QStringLiteral("Mixxx Auxiliary %1").arg(number);
+    }
+
+    return QString();
+}
 } // namespace
 
 EngineMixer::EngineMixer(UserSettingsPointer pConfig,
@@ -324,6 +365,11 @@ void EngineMixer::processChannels(std::size_t bufferSize) {
         auto& pChannel = pChannelInfo->m_pChannel;
         DEBUG_ASSERT(pChannelInfo->m_pBuffer.size() >= static_cast<SINT>(bufferSize));
         pChannel->process(pChannelInfo->m_pBuffer.data(), bufferSize);
+        m_pEngineSync->publishLinkAudioOutput(
+                pChannel->getGroup(),
+                pChannelInfo->m_pBuffer.data(),
+                bufferSize,
+                m_sampleRate);
 
         // Collect metadata for effects
         if (m_pEngineEffectsManager) {
@@ -861,6 +907,11 @@ void EngineMixer::addChannel(std::unique_ptr<EngineChannel> pChannel) {
     pChannelInfo->m_pMuteControl->setButtonMode(mixxx::control::ButtonMode::PowerWindow);
     pChannelInfo->m_pBuffer = mixxx::SampleBuffer(kMaxEngineSamples);
     pChannelInfo->m_pBuffer.clear();
+    const QString linkAudioOutputName =
+            linkAudioOutputNameForChannel(*pChannelInfo->m_pChannel);
+    if (!linkAudioOutputName.isEmpty()) {
+        m_pEngineSync->registerLinkAudioOutput(group, linkAudioOutputName);
+    }
     EngineBuffer* pBuffer = pChannelInfo->m_pChannel->getEngineBuffer();
     m_channels.append(std::move(pChannelInfo));
     constexpr GainCache gainCacheDefault = {0, false};

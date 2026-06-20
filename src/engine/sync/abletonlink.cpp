@@ -78,10 +78,7 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
           m_audioCallbackSampleTime(0.0),
           m_audioSessionState(),
 #ifdef MIXXX_ABLETON_LINK_AUDIO
-          m_pLinkAudioMainSink(std::make_unique<ableton::LinkAudioSink>(
-                  *m_pLink,
-                  kLinkAudioMainOutputName,
-                  kMaxEngineSamples)),
+          m_linkAudioOutputs(),
 #endif
 #endif
           m_pLinkButton(std::make_unique<ControlPushButton>(
@@ -239,6 +236,11 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
 
     setNumPeers(0);
     updateLinkAudioChannels();
+#ifdef MIXXX_ABLETON_LINK_AUDIO
+    registerLinkAudioOutput(
+            QStringLiteral("[Main]"),
+            QStringLiteral("Mixxx Main"));
+#endif
     m_pQuantum->forceSet(getQuantum());
     slotControlLaunchQuantum(m_pLaunchQuantum->get());
     setLinkAudioEnabled(m_pLinkAudioButton->get() > 0);
@@ -716,17 +718,69 @@ void AbletonLink::publishLinkAudioMainOutput(
         const CSAMPLE* pBuffer,
         std::size_t bufferSize,
         mixxx::audio::SampleRate sampleRate) {
+    publishLinkAudioOutput(
+            QStringLiteral("[Main]"),
+            pBuffer,
+            bufferSize,
+            sampleRate);
+}
+
+void AbletonLink::registerLinkAudioOutput(const QString& group, const QString& name) {
+#if defined(__ABLETONLINK__) && defined(MIXXX_ABLETON_LINK_AUDIO)
+    if (group.isEmpty() || name.isEmpty()) {
+        return;
+    }
+
+    for (auto& output : m_linkAudioOutputs) {
+        if (output.group == group) {
+            if (output.name != name) {
+                output.name = name;
+                output.pSink->setName(name.toStdString());
+            }
+            return;
+        }
+    }
+
+    m_linkAudioOutputs.push_back(LinkAudioOutput{
+            group,
+            name,
+            std::make_unique<ableton::LinkAudioSink>(
+                    *m_pLink,
+                    name.toStdString(),
+                    kMaxEngineSamples)});
+#else
+    Q_UNUSED(group)
+    Q_UNUSED(name)
+#endif
+}
+
+void AbletonLink::publishLinkAudioOutput(
+        const QString& group,
+        const CSAMPLE* pBuffer,
+        std::size_t bufferSize,
+        mixxx::audio::SampleRate sampleRate) {
 #if defined(__ABLETONLINK__) && defined(MIXXX_ABLETON_LINK_AUDIO)
     if (!isEnabled() || !isLinkAudioEnabled() || !pBuffer || !sampleRate.isValid()) {
         return;
     }
     constexpr std::size_t kNumChannels = 2;
-    if (bufferSize == 0 || bufferSize % kNumChannels != 0 || !m_pLinkAudioMainSink) {
+    if (group.isEmpty() || bufferSize == 0 || bufferSize % kNumChannels != 0) {
         return;
     }
 
-    m_pLinkAudioMainSink->requestMaxNumSamples(bufferSize);
-    ableton::LinkAudioSink::BufferHandle buffer(*m_pLinkAudioMainSink);
+    ableton::LinkAudioSink* pSink = nullptr;
+    for (auto& output : m_linkAudioOutputs) {
+        if (output.group == group) {
+            pSink = output.pSink.get();
+            break;
+        }
+    }
+    if (!pSink) {
+        return;
+    }
+
+    pSink->requestMaxNumSamples(bufferSize);
+    ableton::LinkAudioSink::BufferHandle buffer(*pSink);
     if (!buffer || buffer.maxNumSamples < bufferSize) {
         return;
     }
@@ -752,6 +806,7 @@ void AbletonLink::publishLinkAudioMainOutput(
             kNumChannels,
             sampleRate.value());
 #else
+    Q_UNUSED(group)
     Q_UNUSED(pBuffer)
     Q_UNUSED(bufferSize)
     Q_UNUSED(sampleRate)

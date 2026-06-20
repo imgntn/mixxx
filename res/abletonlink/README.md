@@ -99,11 +99,15 @@ timestamp for the output buffer.
 Ableton Link 4.0 adds LinkAudio for peer audio-channel sharing. When Mixxx is
 built with headers that provide `LinkAudio.hpp`, it uses `ableton::LinkAudio`,
 can enable/disable LinkAudio, publishes the final stereo main output as a
-LinkAudio sink named `Mixxx Main`, and publishes discovered LinkAudio channel
-count. When built with older Link headers, the LinkAudio controls remain
-available but report unavailable/disabled. Receiving remote LinkAudio streams
-into the Mixxx mixer is intentionally not enabled by default because it needs
-explicit user routing, gain, monitoring, and feedback-loop design.
+LinkAudio sink named `Mixxx Main`, publishes active local engine sources as
+pre-fader LinkAudio sinks, and publishes discovered LinkAudio channel count.
+Per-source channels use stable names such as `Mixxx Deck 1`,
+`Mixxx Sampler 1`, `Mixxx Microphone 1`, `Mixxx Auxiliary 1`, and
+`Mixxx Preview Deck 1`. When built with older Link headers, the LinkAudio
+controls remain available but report unavailable/disabled. Receiving remote
+LinkAudio streams into the Mixxx mixer is intentionally not enabled by default
+because it needs explicit user routing, gain, monitoring, and feedback-loop
+design.
 
 ## Recommended manual test
 
@@ -170,9 +174,9 @@ run normally.
 - Mixxx uses a one-beat Link quantum for deck beat sync. Selectable Launch
   quantum is implemented separately for `1`, `2`, `4`, and `8` beat launch
   grids.
-- LinkAudio-enabled builds publish Mixxx's final stereo main output to LinkAudio
-  as `Mixxx Main`; inbound LinkAudio streams are discovered but not mixed into
-  Mixxx by default.
+- LinkAudio-enabled builds publish Mixxx's final stereo main output as
+  `Mixxx Main` and active local engine sources as pre-fader per-source channels.
+  Inbound LinkAudio streams are discovered but not mixed into Mixxx by default.
 - Link peer discovery depends on local firewall, VPN, multicast, and network
   adapter behavior.
 - On Windows, Ableton Live may hide its own Link button with DirectX/MME. Mixxx

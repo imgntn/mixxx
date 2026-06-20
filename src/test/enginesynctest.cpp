@@ -3524,6 +3524,22 @@ TEST_F(EngineSyncTest, AbletonLinkAudioControlsReflectBuildCapability) {
     std::array<CSAMPLE, 512> outputBuffer{};
     m_pEngineSync->onCallbackStart(mixxx::audio::SampleRate(48000), outputBuffer.size());
     m_pEngineSync->onCallbackEnd(mixxx::audio::SampleRate(48000), outputBuffer.size());
+    m_pEngineSync->registerLinkAudioOutput(
+            QStringLiteral("[Channel1]"),
+            QStringLiteral("Mixxx Deck 1"));
+    m_pEngineSync->registerLinkAudioOutput(
+            QStringLiteral("[Sampler1]"),
+            QStringLiteral("Mixxx Sampler 1"));
+    m_pEngineSync->publishLinkAudioOutput(
+            QStringLiteral("[Channel1]"),
+            outputBuffer.data(),
+            outputBuffer.size(),
+            mixxx::audio::SampleRate(48000));
+    m_pEngineSync->publishLinkAudioOutput(
+            QStringLiteral("[Sampler1]"),
+            outputBuffer.data(),
+            outputBuffer.size(),
+            mixxx::audio::SampleRate(48000));
     m_pEngineSync->publishLinkAudioMainOutput(
             outputBuffer.data(),
             outputBuffer.size(),

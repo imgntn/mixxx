@@ -696,6 +696,18 @@ void EngineSync::onCallbackEnd(mixxx::audio::SampleRate sampleRate, std::size_t 
     m_pAbletonLink->onCallbackEnd(sampleRate, bufferSize);
 }
 
+void EngineSync::registerLinkAudioOutput(const QString& group, const QString& name) {
+    m_pAbletonLink->registerLinkAudioOutput(group, name);
+}
+
+void EngineSync::publishLinkAudioOutput(
+        const QString& group,
+        const CSAMPLE* pBuffer,
+        std::size_t bufferSize,
+        mixxx::audio::SampleRate sampleRate) {
+    m_pAbletonLink->publishLinkAudioOutput(group, pBuffer, bufferSize, sampleRate);
+}
+
 void EngineSync::publishLinkAudioMainOutput(
         const CSAMPLE* pBuffer,
         std::size_t bufferSize,

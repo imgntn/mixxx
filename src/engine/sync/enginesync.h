@@ -2,6 +2,8 @@
 
 #include <gtest/gtest_prod.h>
 
+#include <QString>
+
 #include "audio/types.h"
 #include "engine/sync/syncable.h"
 #include "preferences/usersettings.h"
@@ -85,6 +87,12 @@ class EngineSync : public SyncableListener {
             std::size_t bufferSize,
             std::chrono::microseconds absTimeWhenPrevOutputBufferReachesDac);
     void onCallbackEnd(mixxx::audio::SampleRate sampleRate, std::size_t bufferSize);
+    void registerLinkAudioOutput(const QString& group, const QString& name);
+    void publishLinkAudioOutput(
+            const QString& group,
+            const CSAMPLE* pBuffer,
+            std::size_t bufferSize,
+            mixxx::audio::SampleRate sampleRate);
     void publishLinkAudioMainOutput(
             const CSAMPLE* pBuffer,
             std::size_t bufferSize,

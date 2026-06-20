@@ -132,17 +132,19 @@ Ableton Link 4.0 adds LinkAudio for audio-channel sharing between peers. Mixxx
 detects `LinkAudio.hpp` at compile time. When present, `AbletonLink` uses
 `ableton::LinkAudio`, exposes LinkAudio enable/availability controls, and
 publishes the discovered channel count from Link's channels-changed callback.
-It also owns a persistent `ableton::LinkAudioSink` named `Mixxx Main` and, when
-LinkAudio is enabled, commits the final stereo main output buffer to that sink
-from the audio callback path. The sink is created once with `AbletonLink`, so the
-engine callback does not allocate or destroy LinkAudio routes. When LinkAudio
-headers are absent, Mixxx still builds against older Link headers and the
-LinkAudio controls report unavailable.
+It owns persistent `ableton::LinkAudioSink` instances for `Mixxx Main` and each
+registered local engine source. Active deck, sampler, microphone, auxiliary, and
+preview-deck buffers are published as pre-fader LinkAudio channels with stable
+names such as `Mixxx Deck 1` and `Mixxx Sampler 1`. Sinks are registered when
+channels are added to `EngineMixer`, so the engine callback does not allocate or
+destroy LinkAudio routes. When LinkAudio headers are absent, Mixxx still builds
+against older Link headers and the LinkAudio controls report unavailable.
 
 Receiving LinkAudio streams into the Mixxx mixer is not enabled by default.
 That needs explicit user-facing routing, gain, monitoring, and feedback-loop
 avoidance design. The current implementation publishes Mixxx's own final main
-output while avoiding silent inbound network audio mixing.
+output and local source outputs while avoiding silent inbound network audio
+mixing.
 
 ### Network Discovery Is Environment Dependent
 
