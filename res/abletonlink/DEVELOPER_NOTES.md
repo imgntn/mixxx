@@ -109,6 +109,34 @@ If `MIXXX_LINK_PEER_EXE` is not set, the test skips. This keeps normal test runs
 portable while still allowing maintainers to exercise real Link discovery with
 LinkHut, a local peer harness, or another compatible helper.
 
+On macOS and Linux the same test is enabled by exporting a local executable
+path:
+
+```shell
+export MIXXX_LINK_PEER_EXE=/path/to/mixxx-link-peer
+./mixxx-test --gtest_filter=EngineSyncTest.LinkDiscoversExternalPeersWhenConfigured
+```
+
+## Platform Portability
+
+The core implementation is intended to be shared across Windows, macOS, and
+Linux:
+
+- Mixxx uses Ableton Link's default platform clock and `HostTimeFilter`, not a
+  Windows-only timing source.
+- LinkAudio support is detected from headers with
+  `__has_include(<ableton/LinkAudio.hpp>)`, so classic Link builds can still
+  compile against older system packages.
+- Engine publishing and receiving paths depend on Mixxx's normal audio callback
+  buffers, not WASAPI, CoreAudio, ALSA, JACK, PulseAudio, or PipeWire APIs.
+- QProcess-based external peer tests redirect output through
+  `QProcess::nullDevice()`, which is portable.
+- Windows-only validation helpers live under `res/abletonlink/windows-*` and do
+  not define the behavior expected from macOS or Linux builds.
+
+Platform-specific validation guidance is tracked in
+`res/abletonlink/CROSS_PLATFORM_VALIDATION.md`.
+
 ## Current Known Limitations
 
 ### Beat Sync Quantum

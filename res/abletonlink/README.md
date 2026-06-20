@@ -158,10 +158,11 @@ res/abletonlink/templates/example_ableton_mixxx_link_template_set.als
 ```
 
 Manual release verification steps for Ableton Live, alternate Link peers,
-Windows audio backend behavior, network churn, audio device churn, and soak
-testing are documented in:
+Windows audio backend behavior, macOS/Linux validation, network churn, audio
+device churn, and soak testing are documented in:
 
 ```text
+res/abletonlink/CROSS_PLATFORM_VALIDATION.md
 res/abletonlink/MANUAL_VERIFICATION.md
 ```
 
@@ -181,6 +182,13 @@ local Link peer executable:
 ```powershell
 $env:MIXXX_LINK_PEER_EXE = "C:\path\to\mixxx-link-peer.exe"
 build\x64__abletonlink\mixxx-test.exe --gtest_filter=EngineSyncTest.LinkDiscoversExternalPeersWhenConfigured
+```
+
+On macOS and Linux:
+
+```shell
+export MIXXX_LINK_PEER_EXE=/path/to/mixxx-link-peer
+./mixxx-test --gtest_filter=EngineSyncTest.LinkDiscoversExternalPeersWhenConfigured
 ```
 
 If `MIXXX_LINK_PEER_EXE` is not set, that test skips. Other Link tests still

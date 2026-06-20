@@ -25,7 +25,8 @@ Record these values for every manual run:
 1. Start Ableton Live.
 2. On Windows, select an ASIO driver in Live's audio preferences. Use the
    interface vendor driver when available; ASIO4ALL is acceptable for a smoke
-   test.
+   test. On macOS, use CoreAudio. On Linux, use the normal backend for the
+   package under test.
 3. Confirm Live shows its own `Link` button.
 4. Enable Link in Live.
 5. Open `res/abletonlink/templates/example_ableton_mixxx_link_template_set.als`
@@ -100,7 +101,7 @@ measured offset, audio interface, driver, sample rate, and buffer size.
 
 Run this with Mixxx linked to at least one external peer.
 
-1. Block Mixxx in Windows Firewall, then unblock it.
+1. Block Mixxx in the platform firewall, then unblock it.
 2. Turn Wi-Fi off, then on.
 3. Switch between Wi-Fi and Ethernet if both are available.
 4. Disable and re-enable the active network adapter.
@@ -117,7 +118,10 @@ Run this with Mixxx linked to at least one external peer.
 
 1. Change Mixxx audio buffer size.
 2. Change Mixxx sample rate.
-3. Switch Mixxx between available ASIO devices.
+3. Switch Mixxx between available audio devices. On Windows this should include
+   ASIO where available; on macOS this should include CoreAudio devices; on
+   Linux this should include the active ALSA, JACK, PulseAudio, or PipeWire
+   route used by the package.
 4. Stop and restart Mixxx audio processing through preferences if available.
 5. Disconnect and reconnect the audio interface if the setup allows it.
 6. After each change, confirm Link status controls remain finite and responsive.
@@ -125,6 +129,18 @@ Run this with Mixxx linked to at least one external peer.
 
 Expected result: Mixxx remains stable, Link recovers, and no stale scheduled
 launch fires after audio-device changes.
+
+## macOS and Linux platform pass
+
+Run the platform-specific checklist in:
+
+```text
+res/abletonlink/CROSS_PLATFORM_VALIDATION.md
+```
+
+Expected result: macOS and Linux builds pass the same Link behavior checks, with
+differences limited to local firewall, multicast, audio backend, and loopback
+routing setup.
 
 ## Long-run soak
 
