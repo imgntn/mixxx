@@ -177,8 +177,11 @@ engine sources. Active deck, sampler, microphone, auxiliary, and preview-deck
 buffers are published as pre-fader Link Audio channels with stable names such as
 `Mixxx Deck 1` and `Mixxx Sampler 1`. Sink creation/destruction is handled from
 the Qt/control side when controls or registered outputs change; the engine
-callback only publishes to already-created sinks. When Link Audio headers are
-absent, Mixxx still builds against older Link headers and the Link Audio
+callback only publishes to already-created sinks. The callback observes
+immutable raw-pointer snapshots so it does not lock or copy shared ownership.
+Replaced snapshots, sinks, and receive subscriptions are retired on the
+Qt/control side after the active callback completes. When Link Audio headers
+are absent, Mixxx still builds against older Link headers and the Link Audio
 controls report unavailable.
 
 Receiving Link Audio streams into Mixxx is implemented as an explicit,

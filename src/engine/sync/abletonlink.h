@@ -257,7 +257,11 @@ class AbletonLink : public QObject, public Syncable {
         QString name;
         std::shared_ptr<ableton::LinkAudioSink> pSink;
     };
-    using LinkAudioOutputSnapshot = std::vector<LinkAudioOutput>;
+    struct LinkAudioOutputSnapshotEntry {
+        QString group;
+        ableton::LinkAudioSink* pSink;
+    };
+    using LinkAudioOutputSnapshot = std::vector<LinkAudioOutputSnapshotEntry>;
     struct LinkAudioInput {
         struct Buffer {
             std::array<CSAMPLE, kMaxEngineSamples> samples{};
@@ -293,10 +297,43 @@ class AbletonLink : public QObject, public Syncable {
         std::atomic_size_t queued{0};
         std::atomic_flag writing = ATOMIC_FLAG_INIT;
     };
+    using LinkAudioInputSnapshot = std::vector<std::shared_ptr<LinkAudioInput>>;
+    // The audio callback reads immutable snapshots through raw atomic pointers.
+    // Replaced snapshots and sinks are retired on the control side after the
+    // active callback completes, avoiding locks and shared_ptr refcount traffic
+    // on the callback path.
+    struct RetiredLinkAudioOutputSnapshot {
+        uint64_t callbackGeneration;
+        std::unique_ptr<LinkAudioOutputSnapshot> pSnapshot;
+    };
+    struct RetiredLinkAudioInputSnapshot {
+        uint64_t callbackGeneration;
+        std::unique_ptr<LinkAudioInputSnapshot> pSnapshot;
+    };
+    struct RetiredLinkAudioSink {
+        uint64_t callbackGeneration;
+        std::shared_ptr<ableton::LinkAudioSink> pSink;
+    };
+    void retireLinkAudioSinkLocked(std::shared_ptr<ableton::LinkAudioSink> pSink);
+    void retireLinkAudioOutputSnapshotLocked(std::unique_ptr<LinkAudioOutputSnapshot> pSnapshot);
+    void retireLinkAudioInputSnapshotLocked(std::unique_ptr<LinkAudioInputSnapshot> pSnapshot);
+    uint64_t currentLinkAudioCallbackGeneration() const;
+    void pruneLinkAudioRetiredObjects();
+    void pruneLinkAudioRetiredOutputsLocked();
+    void pruneLinkAudioRetiredInputsLocked();
     std::mutex m_linkAudioOutputsMutex;
+    std::mutex m_linkAudioInputsMutex;
     std::vector<LinkAudioOutput> m_linkAudioOutputs;
-    std::atomic<std::shared_ptr<LinkAudioOutputSnapshot>> m_linkAudioOutputSnapshot;
-    std::atomic<std::shared_ptr<std::vector<std::shared_ptr<LinkAudioInput>>>> m_linkAudioInputs;
+    std::unique_ptr<LinkAudioOutputSnapshot> m_pLinkAudioCurrentOutputSnapshot;
+    std::unique_ptr<LinkAudioInputSnapshot> m_pLinkAudioCurrentInputSnapshot;
+    std::vector<RetiredLinkAudioOutputSnapshot> m_linkAudioRetiredOutputSnapshots;
+    std::vector<RetiredLinkAudioInputSnapshot> m_linkAudioRetiredInputSnapshots;
+    std::vector<RetiredLinkAudioSink> m_linkAudioRetiredSinks;
+    std::atomic<const LinkAudioOutputSnapshot*> m_pLinkAudioOutputSnapshot;
+    std::atomic<const LinkAudioInputSnapshot*> m_pLinkAudioInputSnapshot;
+    std::atomic<uint64_t> m_linkAudioCallbackGeneration;
+    std::atomic_bool m_linkAudioCallbackActive;
+    QTimer m_linkAudioRetireTimer;
 #endif
 #endif
     std::unique_ptr<ControlPushButton> m_pLinkButton;

@@ -309,8 +309,16 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
           m_audioSessionState(),
 #ifdef MIXXX_ABLETON_LINK_AUDIO
           m_linkAudioOutputs(),
-          m_linkAudioOutputSnapshot(std::make_shared<LinkAudioOutputSnapshot>()),
-          m_linkAudioInputs(std::make_shared<std::vector<std::shared_ptr<LinkAudioInput>>>()),
+          m_pLinkAudioCurrentOutputSnapshot(),
+          m_pLinkAudioCurrentInputSnapshot(),
+          m_linkAudioRetiredOutputSnapshots(),
+          m_linkAudioRetiredInputSnapshots(),
+          m_linkAudioRetiredSinks(),
+          m_pLinkAudioOutputSnapshot(nullptr),
+          m_pLinkAudioInputSnapshot(nullptr),
+          m_linkAudioCallbackGeneration(0),
+          m_linkAudioCallbackActive(false),
+          m_linkAudioRetireTimer(this),
 #endif
 #endif
           m_pLinkButton(std::make_unique<ControlPushButton>(
@@ -512,6 +520,21 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
     });
 #endif
 
+#ifdef MIXXX_ABLETON_LINK_AUDIO
+    m_pLinkAudioCurrentOutputSnapshot = std::make_unique<LinkAudioOutputSnapshot>();
+    m_pLinkAudioOutputSnapshot.store(
+            m_pLinkAudioCurrentOutputSnapshot.get(),
+            std::memory_order_release);
+    m_pLinkAudioCurrentInputSnapshot = std::make_unique<LinkAudioInputSnapshot>();
+    m_pLinkAudioInputSnapshot.store(
+            m_pLinkAudioCurrentInputSnapshot.get(),
+            std::memory_order_release);
+    m_linkAudioRetireTimer.setInterval(250);
+    connect(&m_linkAudioRetireTimer, &QTimer::timeout, this, [this] {
+        pruneLinkAudioRetiredObjects();
+    });
+    m_linkAudioRetireTimer.start();
+#endif
     setNumPeers(0);
     updateLinkAudioChannels();
 #ifdef MIXXX_ABLETON_LINK_AUDIO
@@ -545,16 +568,25 @@ AbletonLink::~AbletonLink() {
     m_pLink->setTempoCallback([](double) {});
 #ifdef MIXXX_ABLETON_LINK_AUDIO
     m_pLink->setChannelsChangedCallback([]() {});
+    m_linkAudioRetireTimer.stop();
     {
         std::lock_guard lock(m_linkAudioOutputsMutex);
         m_linkAudioOutputs.clear();
-        m_linkAudioOutputSnapshot.store(
-                std::make_shared<LinkAudioOutputSnapshot>(),
+        m_linkAudioRetiredOutputSnapshots.clear();
+        m_linkAudioRetiredSinks.clear();
+        m_pLinkAudioCurrentOutputSnapshot = std::make_unique<LinkAudioOutputSnapshot>();
+        m_pLinkAudioOutputSnapshot.store(
+                m_pLinkAudioCurrentOutputSnapshot.get(),
                 std::memory_order_release);
     }
-    m_linkAudioInputs.store(
-            std::make_shared<std::vector<std::shared_ptr<LinkAudioInput>>>(),
-            std::memory_order_release);
+    {
+        std::lock_guard lock(m_linkAudioInputsMutex);
+        m_linkAudioRetiredInputSnapshots.clear();
+        m_pLinkAudioCurrentInputSnapshot = std::make_unique<LinkAudioInputSnapshot>();
+        m_pLinkAudioInputSnapshot.store(
+                m_pLinkAudioCurrentInputSnapshot.get(),
+                std::memory_order_release);
+    }
 #endif
     m_pLink->setStartStopCallback([](bool) {});
     m_pLink->enable(false);
@@ -998,6 +1030,10 @@ void AbletonLink::onCallbackStart(
 
 #ifdef __ABLETONLINK__
     s_pAudioCallbackLink = this;
+#ifdef MIXXX_ABLETON_LINK_AUDIO
+    m_linkAudioCallbackActive.store(true, std::memory_order_release);
+    m_linkAudioCallbackGeneration.fetch_add(1, std::memory_order_acq_rel);
+#endif
     m_audioSessionState = m_pLink->captureAudioSessionState();
     setNumPeers(m_pLink->numPeers());
     const int pendingStartStopSyncState = m_pendingStartStopSyncState.exchange(
@@ -1077,7 +1113,7 @@ void AbletonLink::registerLinkAudioOutput(const QString& group, const QString& n
         if (output.group == group) {
             if (output.name != name) {
                 output.name = name;
-                output.pSink.reset();
+                retireLinkAudioSinkLocked(std::move(output.pSink));
             }
             updateLinkAudioOutputSinksLocked();
             return;
@@ -1095,6 +1131,97 @@ void AbletonLink::registerLinkAudioOutput(const QString& group, const QString& n
 #endif
 }
 
+#if defined(__ABLETONLINK__) && defined(MIXXX_ABLETON_LINK_AUDIO)
+uint64_t AbletonLink::currentLinkAudioCallbackGeneration() const {
+    return m_linkAudioCallbackGeneration.load(std::memory_order_acquire);
+}
+
+void AbletonLink::retireLinkAudioSinkLocked(
+        std::shared_ptr<ableton::LinkAudioSink> pSink) {
+    if (!pSink) {
+        return;
+    }
+    m_linkAudioRetiredSinks.push_back(RetiredLinkAudioSink{
+            currentLinkAudioCallbackGeneration(),
+            std::move(pSink)});
+}
+
+void AbletonLink::retireLinkAudioOutputSnapshotLocked(
+        std::unique_ptr<LinkAudioOutputSnapshot> pSnapshot) {
+    if (!pSnapshot) {
+        return;
+    }
+    m_linkAudioRetiredOutputSnapshots.push_back(RetiredLinkAudioOutputSnapshot{
+            currentLinkAudioCallbackGeneration(),
+            std::move(pSnapshot)});
+}
+
+void AbletonLink::retireLinkAudioInputSnapshotLocked(
+        std::unique_ptr<LinkAudioInputSnapshot> pSnapshot) {
+    if (!pSnapshot) {
+        return;
+    }
+    m_linkAudioRetiredInputSnapshots.push_back(RetiredLinkAudioInputSnapshot{
+            currentLinkAudioCallbackGeneration(),
+            std::move(pSnapshot)});
+}
+
+void AbletonLink::pruneLinkAudioRetiredObjects() {
+    {
+        std::lock_guard lock(m_linkAudioOutputsMutex);
+        pruneLinkAudioRetiredOutputsLocked();
+    }
+    {
+        std::lock_guard lock(m_linkAudioInputsMutex);
+        pruneLinkAudioRetiredInputsLocked();
+    }
+}
+
+void AbletonLink::pruneLinkAudioRetiredOutputsLocked() {
+    if (m_linkAudioCallbackActive.load(std::memory_order_acquire)) {
+        return;
+    }
+
+    const uint64_t callbackGeneration = currentLinkAudioCallbackGeneration();
+    const auto retiredBeforeCompletedCallback =
+            [callbackGeneration](const auto& retired) {
+                return retired.callbackGeneration <= callbackGeneration;
+            };
+
+    m_linkAudioRetiredOutputSnapshots.erase(
+            std::remove_if(
+                    m_linkAudioRetiredOutputSnapshots.begin(),
+                    m_linkAudioRetiredOutputSnapshots.end(),
+                    retiredBeforeCompletedCallback),
+            m_linkAudioRetiredOutputSnapshots.end());
+    m_linkAudioRetiredSinks.erase(
+            std::remove_if(
+                    m_linkAudioRetiredSinks.begin(),
+                    m_linkAudioRetiredSinks.end(),
+                    retiredBeforeCompletedCallback),
+            m_linkAudioRetiredSinks.end());
+}
+
+void AbletonLink::pruneLinkAudioRetiredInputsLocked() {
+    if (m_linkAudioCallbackActive.load(std::memory_order_acquire)) {
+        return;
+    }
+
+    const uint64_t callbackGeneration = currentLinkAudioCallbackGeneration();
+    const auto retiredBeforeCompletedCallback =
+            [callbackGeneration](const auto& retired) {
+                return retired.callbackGeneration <= callbackGeneration;
+            };
+
+    m_linkAudioRetiredInputSnapshots.erase(
+            std::remove_if(
+                    m_linkAudioRetiredInputSnapshots.begin(),
+                    m_linkAudioRetiredInputSnapshots.end(),
+                    retiredBeforeCompletedCallback),
+            m_linkAudioRetiredInputSnapshots.end());
+}
+#endif
+
 void AbletonLink::publishLinkAudioOutput(
         const QString& group,
         const CSAMPLE* pBuffer,
@@ -1109,12 +1236,12 @@ void AbletonLink::publishLinkAudioOutput(
         return;
     }
 
-    const auto outputs = m_linkAudioOutputSnapshot.load(std::memory_order_acquire);
+    const auto* outputs = m_pLinkAudioOutputSnapshot.load(std::memory_order_acquire);
     if (!outputs) {
         return;
     }
 
-    std::shared_ptr<ableton::LinkAudioSink> pSink;
+    ableton::LinkAudioSink* pSink = nullptr;
     for (const auto& output : *outputs) {
         if (output.group == group) {
             pSink = output.pSink;
@@ -1164,6 +1291,9 @@ void AbletonLink::mixInboundLinkAudioMainOutput(
         std::size_t bufferSize,
         mixxx::audio::SampleRate sampleRate) {
 #if defined(__ABLETONLINK__) && defined(MIXXX_ABLETON_LINK_AUDIO)
+    const auto markLinkAudioCallbackComplete = [this] {
+        m_linkAudioCallbackActive.store(false, std::memory_order_release);
+    };
     if (!isEnabled() ||
             !isLinkAudioEnabled() ||
             !isLinkAudioReceiveEnabled() ||
@@ -1172,12 +1302,14 @@ void AbletonLink::mixInboundLinkAudioMainOutput(
             bufferSize == 0 ||
             !sampleRate.isValid()) {
         m_pLinkAudioReceiveActive->forceSet(0.0);
+        markLinkAudioCallbackComplete();
         return;
     }
 
-    const auto inputs = m_linkAudioInputs.load(std::memory_order_acquire);
+    const auto* inputs = m_pLinkAudioInputSnapshot.load(std::memory_order_acquire);
     if (!inputs || inputs->empty()) {
         m_pLinkAudioReceiveActive->forceSet(0.0);
+        markLinkAudioCallbackComplete();
         return;
     }
 
@@ -1202,6 +1334,7 @@ void AbletonLink::mixInboundLinkAudioMainOutput(
         }
     }
     m_pLinkAudioReceiveActive->forceSet(mixed ? 1.0 : 0.0);
+    markLinkAudioCallbackComplete();
 #else
     Q_UNUSED(pBuffer)
     Q_UNUSED(bufferSize)
@@ -1229,12 +1362,25 @@ void AbletonLink::updateLinkAudioOutputSinksLocked() {
                     output.name.toStdString(),
                     kMaxEngineSamples);
         } else if (!shouldPublish && output.pSink) {
-            output.pSink.reset();
+            retireLinkAudioSinkLocked(std::move(output.pSink));
         }
     }
-    m_linkAudioOutputSnapshot.store(
-            std::make_shared<LinkAudioOutputSnapshot>(m_linkAudioOutputs),
+    auto nextSnapshot = std::make_unique<LinkAudioOutputSnapshot>();
+    nextSnapshot->reserve(m_linkAudioOutputs.size());
+    for (const auto& output : m_linkAudioOutputs) {
+        if (output.pSink) {
+            nextSnapshot->push_back(LinkAudioOutputSnapshotEntry{
+                    output.group,
+                    output.pSink.get()});
+        }
+    }
+    auto previousSnapshot = std::move(m_pLinkAudioCurrentOutputSnapshot);
+    m_pLinkAudioCurrentOutputSnapshot = std::move(nextSnapshot);
+    m_pLinkAudioOutputSnapshot.store(
+            m_pLinkAudioCurrentOutputSnapshot.get(),
             std::memory_order_release);
+    retireLinkAudioOutputSnapshotLocked(std::move(previousSnapshot));
+    pruneLinkAudioRetiredOutputsLocked();
 #endif
 }
 
@@ -1245,13 +1391,14 @@ void AbletonLink::setNumPeers(std::size_t numPeers) {
 
 void AbletonLink::updateLinkAudioChannels() {
 #ifdef MIXXX_ABLETON_LINK_AUDIO
+    std::lock_guard lock(m_linkAudioInputsMutex);
     const auto channels = m_pLink->channels();
     m_numLinkAudioChannels.store(channels.size(), std::memory_order_relaxed);
     m_pLinkAudioNumChannels->forceSet(static_cast<double>(channels.size()));
 
-    auto nextInputs = std::make_shared<std::vector<std::shared_ptr<LinkAudioInput>>>();
+    auto nextInputs = std::make_unique<LinkAudioInputSnapshot>();
     if (isLinkAudioReceiveEnabled() && isLinkAudioEnabled()) {
-        const auto currentInputs = m_linkAudioInputs.load(std::memory_order_acquire);
+        const auto* currentInputs = m_pLinkAudioInputSnapshot.load(std::memory_order_acquire);
         const QString localPeerName = QString::fromStdString(m_linkAudioPeerName);
         for (const auto& channel : channels) {
             if (QString::fromStdString(channel.peerName) == localPeerName) {
@@ -1287,9 +1434,15 @@ void AbletonLink::updateLinkAudioChannels() {
             nextInputs->push_back(std::move(input));
         }
     }
-    m_linkAudioInputs.store(nextInputs, std::memory_order_release);
     m_numLinkAudioReceiveChannels.store(nextInputs->size(), std::memory_order_relaxed);
     m_pLinkAudioReceiveNumChannels->forceSet(static_cast<double>(nextInputs->size()));
+    auto previousInputs = std::move(m_pLinkAudioCurrentInputSnapshot);
+    m_pLinkAudioCurrentInputSnapshot = std::move(nextInputs);
+    m_pLinkAudioInputSnapshot.store(
+            m_pLinkAudioCurrentInputSnapshot.get(),
+            std::memory_order_release);
+    retireLinkAudioInputSnapshotLocked(std::move(previousInputs));
+    pruneLinkAudioRetiredInputsLocked();
 #else
     m_numLinkAudioChannels.store(0, std::memory_order_relaxed);
     m_pLinkAudioNumChannels->forceSet(0.0);
