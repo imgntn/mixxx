@@ -97,6 +97,10 @@ class EngineSync : public SyncableListener {
             const CSAMPLE* pBuffer,
             std::size_t bufferSize,
             mixxx::audio::SampleRate sampleRate);
+    void mixInboundLinkAudioMainOutput(
+            CSAMPLE* pBuffer,
+            std::size_t bufferSize,
+            mixxx::audio::SampleRate sampleRate);
 
   private:
     /// Iterate over decks, and based on sync and play status, pick a new Leader, or return the

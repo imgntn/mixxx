@@ -38,6 +38,10 @@ void expectAbletonLinkStatusControlsAreFinite() {
             ControlObject::get(ConfigKey("[AbletonLink]", "link_audio_available"));
     const double linkAudioChannels =
             ControlObject::get(ConfigKey("[AbletonLink]", "link_audio_num_channels"));
+    const double linkAudioReceiveChannels = ControlObject::get(
+            ConfigKey("[AbletonLink]", "link_audio_receive_num_channels"));
+    const double linkAudioReceiveActive = ControlObject::get(
+            ConfigKey("[AbletonLink]", "link_audio_receive_active"));
     const double outputLatency =
             ControlObject::get(ConfigKey("[AbletonLink]", "output_latency_micros"));
     const double hostTimeFilterEnabled =
@@ -57,6 +61,8 @@ void expectAbletonLinkStatusControlsAreFinite() {
     EXPECT_TRUE(std::isfinite(playing));
     EXPECT_TRUE(std::isfinite(linkAudioAvailable));
     EXPECT_TRUE(std::isfinite(linkAudioChannels));
+    EXPECT_TRUE(std::isfinite(linkAudioReceiveChannels));
+    EXPECT_TRUE(std::isfinite(linkAudioReceiveActive));
     EXPECT_TRUE(std::isfinite(outputLatency));
     EXPECT_TRUE(std::isfinite(hostTimeFilterEnabled));
     EXPECT_TRUE(std::isfinite(nextBeatTime));
@@ -69,6 +75,8 @@ void expectAbletonLinkStatusControlsAreFinite() {
     EXPECT_TRUE(playing == 0.0 || playing == 1.0);
     EXPECT_TRUE(linkAudioAvailable == 0.0 || linkAudioAvailable == 1.0);
     EXPECT_GE(linkAudioChannels, 0.0);
+    EXPECT_GE(linkAudioReceiveChannels, 0.0);
+    EXPECT_TRUE(linkAudioReceiveActive == 0.0 || linkAudioReceiveActive == 1.0);
     EXPECT_GE(outputLatency, 0.0);
     EXPECT_TRUE(hostTimeFilterEnabled == 0.0 || hostTimeFilterEnabled == 1.0);
     EXPECT_GE(nextBeatTime, 0.0);
@@ -3423,13 +3431,18 @@ TEST_F(EngineSyncTest, LinkStartStopSyncDisableKeepsLinkSessionEnabled) {
 }
 
 TEST_F(EngineSyncTest, AbletonLinkPublicControlsRemainScriptableAndStatusReadOnly) {
-    const std::array<const char*, 19> controls{
+    const std::array<const char*, 24> controls{
             "sync_enabled",
             "enabled",
             "start_stop_sync_enabled",
             "link_audio_enabled",
+            "link_audio_receive_enabled",
+            "link_audio_receive_muted",
+            "link_audio_receive_gain",
             "link_audio_available",
             "link_audio_num_channels",
+            "link_audio_receive_num_channels",
+            "link_audio_receive_active",
             "quantized_launch",
             "launch_quantum",
             "num_peers",
@@ -3514,12 +3527,27 @@ TEST_F(EngineSyncTest, AbletonLinkAudioControlsReflectBuildCapability) {
 #else
     ControlObject::set(ConfigKey("[AbletonLink]", "sync_enabled"), 1.0);
     ControlObject::set(ConfigKey("[AbletonLink]", "link_audio_enabled"), 1.0);
+    ControlObject::set(ConfigKey("[AbletonLink]", "link_audio_receive_enabled"), 1.0);
+    ControlObject::set(ConfigKey("[AbletonLink]", "link_audio_receive_gain"), 0.5);
+    ControlObject::set(ConfigKey("[AbletonLink]", "link_audio_receive_muted"), 1.0);
 
 #ifdef MIXXX_ABLETON_LINK_AUDIO
     EXPECT_DOUBLE_EQ(1.0,
             ControlObject::get(ConfigKey("[AbletonLink]", "link_audio_available")));
     EXPECT_DOUBLE_EQ(1.0,
             ControlObject::get(ConfigKey("[AbletonLink]", "link_audio_enabled")));
+    EXPECT_DOUBLE_EQ(1.0,
+            ControlObject::get(ConfigKey("[AbletonLink]", "link_audio_receive_enabled")));
+    EXPECT_DOUBLE_EQ(0.5,
+            ControlObject::get(ConfigKey("[AbletonLink]", "link_audio_receive_gain")));
+    EXPECT_DOUBLE_EQ(1.0,
+            ControlObject::get(ConfigKey("[AbletonLink]", "link_audio_receive_muted")));
+    ControlObject::set(ConfigKey("[AbletonLink]", "link_audio_receive_gain"), 3.0);
+    EXPECT_DOUBLE_EQ(2.0,
+            ControlObject::get(ConfigKey("[AbletonLink]", "link_audio_receive_gain")));
+    ControlObject::set(ConfigKey("[AbletonLink]", "link_audio_receive_gain"), -1.0);
+    EXPECT_DOUBLE_EQ(0.0,
+            ControlObject::get(ConfigKey("[AbletonLink]", "link_audio_receive_gain")));
 
     std::array<CSAMPLE, 512> outputBuffer{};
     m_pEngineSync->onCallbackStart(mixxx::audio::SampleRate(48000), outputBuffer.size());
@@ -3549,8 +3577,11 @@ TEST_F(EngineSyncTest, AbletonLinkAudioControlsReflectBuildCapability) {
             ControlObject::get(ConfigKey("[AbletonLink]", "link_audio_available")));
     EXPECT_DOUBLE_EQ(0.0,
             ControlObject::get(ConfigKey("[AbletonLink]", "link_audio_enabled")));
+    EXPECT_DOUBLE_EQ(0.0,
+            ControlObject::get(ConfigKey("[AbletonLink]", "link_audio_receive_enabled")));
 #endif
     EXPECT_GE(ControlObject::get(ConfigKey("[AbletonLink]", "link_audio_num_channels")), 0.0);
+    EXPECT_GE(ControlObject::get(ConfigKey("[AbletonLink]", "link_audio_receive_num_channels")), 0.0);
     expectAbletonLinkStatusControlsAreFinite();
 #endif
 }
@@ -3966,10 +3997,12 @@ TEST_F(EngineSyncTest, AbletonLinkStatusControlsIgnoreExternalWrites) {
     ControlObject::set(ConfigKey("[AbletonLink]", "sync_enabled"), 1.0);
     ProcessBuffer();
 
-    const std::array<const char*, 14> readOnlyControls{
+    const std::array<const char*, 16> readOnlyControls{
             "enabled",
             "link_audio_available",
             "link_audio_num_channels",
+            "link_audio_receive_num_channels",
+            "link_audio_receive_active",
             "num_peers",
             "bpm",
             "beat_distance",

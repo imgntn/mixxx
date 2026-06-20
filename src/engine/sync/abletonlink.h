@@ -1,11 +1,13 @@
 #pragma once
 
 #include <atomic>
+#include <array>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include <QString>
@@ -27,6 +29,8 @@
 #include "engine/enginebuffer.h"
 #include "engine/sync/syncable.h"
 #include "engine/sync/synccontrol.h"
+
+class ControlPotmeter;
 
 /// This class manages a link session.
 /// Read & update (get & set) this session for Mixxx to be a synced Link
@@ -109,6 +113,8 @@ class AbletonLink : public QObject, public Syncable {
     bool isLinkAudioAvailable() const;
     bool isLinkAudioEnabled() const;
     void setLinkAudioEnabled(bool enabled);
+    bool isLinkAudioReceiveEnabled() const;
+    void setLinkAudioReceiveEnabled(bool enabled);
     void requestStartStopSync(bool playing);
     void requestQuantizedLaunch();
     std::size_t numPeers() const;
@@ -167,11 +173,18 @@ class AbletonLink : public QObject, public Syncable {
             const CSAMPLE* pBuffer,
             std::size_t bufferSize,
             mixxx::audio::SampleRate sampleRate);
+    void mixInboundLinkAudioMainOutput(
+            CSAMPLE* pBuffer,
+            std::size_t bufferSize,
+            mixxx::audio::SampleRate sampleRate);
 
   private:
     void slotControlSyncEnabled(double value);
     void slotControlStartStopSyncEnabled(double value);
     void slotControlLinkAudioEnabled(double value);
+    void slotControlLinkAudioReceiveEnabled(double value);
+    void slotControlLinkAudioReceiveMuted(double value);
+    void slotControlLinkAudioReceiveGain(double value);
     void slotControlQuantizedLaunch(double value);
     void slotControlLaunchQuantum(double value);
     void slotLinkStartStopChanged(
@@ -201,7 +214,11 @@ class AbletonLink : public QObject, public Syncable {
     std::atomic_bool m_linkEnabled;
     std::atomic_bool m_startStopSyncEnabled;
     std::atomic_bool m_linkAudioEnabled;
+    std::atomic_bool m_linkAudioReceiveEnabled;
+    std::atomic_bool m_linkAudioReceiveMuted;
+    std::atomic<double> m_linkAudioReceiveGain;
     std::atomic_size_t m_numLinkAudioChannels;
+    std::atomic_size_t m_numLinkAudioReceiveChannels;
     std::atomic<int> m_launchQuantumBeats;
     std::atomic<int> m_pendingStartStopSyncState;
     std::atomic_size_t m_numPeers;
@@ -218,6 +235,9 @@ class AbletonLink : public QObject, public Syncable {
     uint64_t m_scheduledStartStopSyncGeneration;
 
 #ifdef __ABLETONLINK__
+#ifdef MIXXX_ABLETON_LINK_AUDIO
+    std::string m_linkAudioPeerName;
+#endif
     std::unique_ptr<MixxxAbletonLink> m_pLink;
     MixxxAbletonLinkHostTimeFilter m_hostTimeFilter;
     double m_audioCallbackSampleTime;
@@ -228,16 +248,53 @@ class AbletonLink : public QObject, public Syncable {
         QString name;
         std::unique_ptr<ableton::LinkAudioSink> pSink;
     };
+    struct LinkAudioInput {
+        struct Buffer {
+            std::array<CSAMPLE, kMaxEngineSamples> samples{};
+            std::size_t numFrames{0};
+            std::size_t numChannels{0};
+            uint32_t sampleRate{0};
+        };
+
+        static constexpr std::size_t kBufferSlots = 32;
+
+        explicit LinkAudioInput(MixxxAbletonLink::Channel channel);
+
+        bool matches(const MixxxAbletonLink::Channel& channel) const;
+        void updateMetadata(const MixxxAbletonLink::Channel& channel);
+        void onBuffer(ableton::LinkAudioSource::BufferHandle bufferHandle);
+        bool mixInto(
+                CSAMPLE* pBuffer,
+                std::size_t bufferSize,
+                mixxx::audio::SampleRate sampleRate,
+                CSAMPLE_GAIN gain);
+
+        ableton::ChannelId id;
+        QString name;
+        QString peerName;
+        std::unique_ptr<ableton::LinkAudioSource> pSource;
+        std::array<Buffer, kBufferSlots> buffers;
+        std::atomic_size_t writeIndex{0};
+        std::atomic_size_t readIndex{0};
+        std::atomic_size_t queued{0};
+        double readFramePosition{0.0};
+    };
     std::vector<LinkAudioOutput> m_linkAudioOutputs;
+    std::atomic<std::shared_ptr<std::vector<std::shared_ptr<LinkAudioInput>>>> m_linkAudioInputs;
 #endif
 #endif
     std::unique_ptr<ControlPushButton> m_pLinkButton;
     std::unique_ptr<ControlPushButton> m_pStartStopSyncButton;
     std::unique_ptr<ControlPushButton> m_pLinkAudioButton;
+    std::unique_ptr<ControlPushButton> m_pLinkAudioReceiveButton;
+    std::unique_ptr<ControlPushButton> m_pLinkAudioReceiveMuteButton;
+    std::unique_ptr<ControlPotmeter> m_pLinkAudioReceiveGain;
     std::unique_ptr<ControlPushButton> m_pQuantizedLaunchButton;
     std::unique_ptr<ControlObject> m_pEnabled;
     std::unique_ptr<ControlObject> m_pLinkAudioAvailable;
     std::unique_ptr<ControlObject> m_pLinkAudioNumChannels;
+    std::unique_ptr<ControlObject> m_pLinkAudioReceiveNumChannels;
+    std::unique_ptr<ControlObject> m_pLinkAudioReceiveActive;
     std::unique_ptr<ControlObject> m_pNumLinkPeers;
     std::unique_ptr<ControlObject> m_pBpm;
     std::unique_ptr<ControlObject> m_pBeatDistance;

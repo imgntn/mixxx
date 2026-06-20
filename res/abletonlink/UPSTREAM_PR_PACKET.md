@@ -15,11 +15,14 @@ quantum.
 
 - New `[AbletonLink]` controls expose Link enable state, peer count, BPM, beat
   phase, beat-sync quantum, launch quantum, LinkAudio availability/channel
-  discovery, playing state, output latency compensation, host-time-filter
-  status, next beat timing, and pending launch timing.
+  discovery, LinkAudio receive enable/mute/gain/status, playing state, output
+  latency compensation, host-time-filter status, next beat timing, and pending
+  launch timing.
 - Default skins expose compact Link controls for enabling Link, peer/BPM
   status, Start/Stop Sync, and Launch.
 - Sync preferences expose Link availability, status, and launch quantum.
+- Sync preferences expose LinkAudio publish/receive controls when LinkAudio is
+  available.
 - On Windows, Mixxx Link controls remain available whenever Mixxx is built with
   Link support, even if Ableton Live hides its own Link button for DirectX/MME
   driver configurations.
@@ -56,8 +59,10 @@ When `FETCH_ABLETONLINK=OFF`, the build expects a system package exposing
   can enable LinkAudio channel discovery, publishes the final stereo main output
   as `Mixxx Main`, and publishes active local engine sources as pre-fader
   per-source sinks such as `Mixxx Deck 1`, `Mixxx Sampler 1`, and
-  `Mixxx Microphone 1`. Older Link headers remain supported and report
-  LinkAudio unavailable.
+  `Mixxx Microphone 1`. It can also receive remote LinkAudio channels into the
+  local main output with explicit enable/mute/gain controls, skipping Mixxx's
+  own advertised channels to avoid local feedback. Older Link headers remain
+  supported and report LinkAudio unavailable.
 
 Detailed architecture notes are in:
 
@@ -172,6 +177,8 @@ action for starting synced decks on a selectable Link launch quantum.
   observable.
 - Start/Stop Sync can publish/follow Link transport.
 - Launch starts synced Mixxx decks on the selected Link launch quantum.
+- LinkAudio can publish Mixxx main/per-source channels and can receive remote
+  LinkAudio into Mixxx's main output when explicitly enabled.
 
 ## Implementation notes
 

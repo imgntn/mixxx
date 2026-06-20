@@ -63,8 +63,13 @@ Useful controls for scripts, mappings, tests, and automation:
 - `[AbletonLink],enabled`
 - `[AbletonLink],start_stop_sync_enabled`
 - `[AbletonLink],link_audio_enabled`
+- `[AbletonLink],link_audio_receive_enabled`
+- `[AbletonLink],link_audio_receive_muted`
+- `[AbletonLink],link_audio_receive_gain`
 - `[AbletonLink],link_audio_available`
 - `[AbletonLink],link_audio_num_channels`
+- `[AbletonLink],link_audio_receive_num_channels`
+- `[AbletonLink],link_audio_receive_active`
 - `[AbletonLink],quantized_launch`
 - `[AbletonLink],launch_quantum`
 - `[AbletonLink],num_peers`

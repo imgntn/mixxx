@@ -50,8 +50,13 @@ The public integration surface is the `[AbletonLink]` control group:
 | `enabled` | no | Effective Link engine state. |
 | `start_stop_sync_enabled` | yes | Requested Link Start/Stop Sync state. |
 | `link_audio_enabled` | yes | Requested LinkAudio enable state, honored when built with LinkAudio headers. |
+| `link_audio_receive_enabled` | yes | Requested state for mixing remote LinkAudio into the local main output. |
+| `link_audio_receive_muted` | yes | Mutes received LinkAudio while keeping subscriptions active. |
+| `link_audio_receive_gain` | yes | Gain multiplier for received LinkAudio, clamped to `0.0` through `2.0`. |
 | `link_audio_available` | no | Build capability for LinkAudio. |
 | `link_audio_num_channels` | no | Number of discovered LinkAudio channels. |
+| `link_audio_receive_num_channels` | no | Number of remote LinkAudio channels currently subscribed for receive. |
+| `link_audio_receive_active` | no | `1` while received LinkAudio was mixed into the main output in the current callback. |
 | `quantized_launch` | yes | Momentary command to start Link transport and synced Mixxx decks on the selected launch quantum. |
 | `launch_quantum` | yes | Launch grid in beats. Supported values are `1`, `2`, `4`, and `8`. |
 | `num_peers` | no | Number of other Link peers. |
@@ -140,11 +145,20 @@ channels are added to `EngineMixer`, so the engine callback does not allocate or
 destroy LinkAudio routes. When LinkAudio headers are absent, Mixxx still builds
 against older Link headers and the LinkAudio controls report unavailable.
 
-Receiving LinkAudio streams into the Mixxx mixer is not enabled by default.
-That needs explicit user-facing routing, gain, monitoring, and feedback-loop
-avoidance design. The current implementation publishes Mixxx's own final main
-output and local source outputs while avoiding silent inbound network audio
-mixing.
+Receiving LinkAudio streams into Mixxx is implemented as an explicit,
+default-off main-output input. `AbletonLink` subscribes to discovered channels
+whose `peerName` does not match Mixxx's generated local peer name, buffers
+incoming one- or two-channel int16 audio into fixed-size ring slots, applies a
+simple sample-rate ratio while reading, and mixes the result into the main
+output with the user-selected receive gain unless muted. `EngineMixer` publishes
+`Mixxx Main` before inbound receive mixing so received remote audio is audible
+locally but is not immediately re-advertised through Mixxx's own main LinkAudio
+sink.
+
+The current receive path is intentionally a mixer input, not a full routing
+matrix. It does not expose per-remote-channel solo/monitor routing yet; those
+controls can be layered above the existing subscription and buffer model if the
+UX is accepted upstream.
 
 ### Network Discovery Is Environment Dependent
 

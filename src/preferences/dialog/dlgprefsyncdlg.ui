@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>620</width>
-    <height>430</height>
+    <height>500</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -53,12 +53,84 @@
       <item>
        <widget class="QCheckBox" name="CheckBoxLinkAudio">
         <property name="toolTip">
-         <string>Enable Ableton LinkAudio channel discovery when this build includes Ableton Link 4.0 or newer.</string>
+         <string>Enable Ableton LinkAudio channel discovery and publish Mixxx audio channels when this build includes Ableton Link 4.0 or newer.</string>
         </property>
         <property name="text">
          <string>Enable LinkAudio</string>
         </property>
        </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="CheckBoxLinkAudioReceive">
+        <property name="toolTip">
+         <string>Mix remote LinkAudio channels from other Link peers into Mixxx's main output.</string>
+        </property>
+        <property name="text">
+         <string>Receive LinkAudio into main output</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="CheckBoxLinkAudioReceiveMute">
+        <property name="toolTip">
+         <string>Keep remote LinkAudio subscriptions active but silence them in Mixxx's main output.</string>
+        </property>
+        <property name="text">
+         <string>Mute received LinkAudio</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayoutLinkAudioReceiveGain">
+        <item>
+         <widget class="QLabel" name="LabelLinkAudioReceiveGain">
+          <property name="text">
+           <string>Receive gain</string>
+          </property>
+          <property name="buddy">
+           <cstring>SpinBoxLinkAudioReceiveGain</cstring>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QDoubleSpinBox" name="SpinBoxLinkAudioReceiveGain">
+          <property name="toolTip">
+           <string>Adjust the level of remote LinkAudio mixed into the main output.</string>
+          </property>
+          <property name="decimals">
+           <number>2</number>
+          </property>
+          <property name="minimum">
+           <double>0.000000000000000</double>
+          </property>
+          <property name="maximum">
+           <double>2.000000000000000</double>
+          </property>
+          <property name="singleStep">
+           <double>0.050000000000000</double>
+          </property>
+          <property name="value">
+           <double>1.000000000000000</double>
+          </property>
+          <property name="suffix">
+           <string> x</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="horizontalSpacerLinkAudioReceiveGain">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
       </item>
       <item>
        <layout class="QHBoxLayout" name="horizontalLayoutLaunchQuantum">
@@ -244,62 +316,90 @@
        </widget>
       </item>
       <item row="10" column="0">
-       <widget class="QLabel" name="LabelOutputLatency">
+       <widget class="QLabel" name="LabelLinkAudioReceiveChannels">
         <property name="text">
-         <string>Output latency compensation</string>
+         <string>LinkAudio receive channels</string>
         </property>
        </widget>
       </item>
       <item row="10" column="1">
-       <widget class="QLabel" name="LabelOutputLatencyValue">
+       <widget class="QLabel" name="LabelLinkAudioReceiveChannelsValue">
         <property name="text">
          <string notr="true">n/a</string>
         </property>
        </widget>
       </item>
       <item row="11" column="0">
-       <widget class="QLabel" name="LabelHostTimeFilter">
+       <widget class="QLabel" name="LabelLinkAudioReceiveActive">
         <property name="text">
-         <string>Host time filter</string>
+         <string>LinkAudio receive active</string>
         </property>
        </widget>
       </item>
       <item row="11" column="1">
-       <widget class="QLabel" name="LabelHostTimeFilterValue">
+       <widget class="QLabel" name="LabelLinkAudioReceiveActiveValue">
         <property name="text">
          <string notr="true">n/a</string>
         </property>
        </widget>
       </item>
       <item row="12" column="0">
-       <widget class="QLabel" name="LabelNextBeatEta">
+       <widget class="QLabel" name="LabelOutputLatency">
         <property name="text">
-         <string>Next beat ETA</string>
+         <string>Output latency compensation</string>
         </property>
        </widget>
       </item>
       <item row="12" column="1">
-       <widget class="QLabel" name="LabelNextBeatEtaValue">
+       <widget class="QLabel" name="LabelOutputLatencyValue">
         <property name="text">
          <string notr="true">n/a</string>
         </property>
        </widget>
       </item>
       <item row="13" column="0">
+       <widget class="QLabel" name="LabelHostTimeFilter">
+        <property name="text">
+         <string>Host time filter</string>
+        </property>
+       </widget>
+      </item>
+      <item row="13" column="1">
+       <widget class="QLabel" name="LabelHostTimeFilterValue">
+        <property name="text">
+         <string notr="true">n/a</string>
+        </property>
+       </widget>
+      </item>
+      <item row="14" column="0">
+       <widget class="QLabel" name="LabelNextBeatEta">
+        <property name="text">
+         <string>Next beat ETA</string>
+        </property>
+       </widget>
+      </item>
+      <item row="14" column="1">
+       <widget class="QLabel" name="LabelNextBeatEtaValue">
+        <property name="text">
+         <string notr="true">n/a</string>
+        </property>
+       </widget>
+      </item>
+      <item row="15" column="0">
        <widget class="QLabel" name="LabelQueuedLaunchEta">
         <property name="text">
          <string>Queued launch ETA</string>
         </property>
        </widget>
       </item>
-      <item row="13" column="1">
+      <item row="15" column="1">
        <widget class="QLabel" name="LabelQueuedLaunchEtaValue">
         <property name="text">
          <string notr="true">n/a</string>
         </property>
        </widget>
       </item>
-      <item row="0" column="2" rowspan="14">
+      <item row="0" column="2" rowspan="16">
        <spacer name="horizontalSpacerStatus">
         <property name="orientation">
          <enum>Qt::Horizontal</enum>

@@ -715,6 +715,13 @@ void EngineSync::publishLinkAudioMainOutput(
     m_pAbletonLink->publishLinkAudioMainOutput(pBuffer, bufferSize, sampleRate);
 }
 
+void EngineSync::mixInboundLinkAudioMainOutput(
+        CSAMPLE* pBuffer,
+        std::size_t bufferSize,
+        mixxx::audio::SampleRate sampleRate) {
+    m_pAbletonLink->mixInboundLinkAudioMainOutput(pBuffer, bufferSize, sampleRate);
+}
+
 EngineChannel* EngineSync::getLeaderChannel() const {
     return m_pLeaderSyncable ? m_pLeaderSyncable->getChannel() : nullptr;
 }

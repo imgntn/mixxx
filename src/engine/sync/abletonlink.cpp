@@ -3,12 +3,14 @@
 #include <QMetaObject>
 #include <QPointer>
 #include <QTimer>
+#include <QUuid>
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <limits>
 #include <type_traits>
 
+#include "control/controlpotmeter.h"
 #include "control/controlobject.h"
 #include "engine/sync/enginesync.h"
 #include "moc_abletonlink.cpp"
@@ -26,9 +28,13 @@ constexpr int kNoPendingStartStopSyncState = -1;
 constexpr int kPendingStop = 0;
 constexpr int kPendingStart = 1;
 #ifdef __ABLETONLINK__
-constexpr char kLinkAudioPeerName[] = "Mixxx";
 #ifdef MIXXX_ABLETON_LINK_AUDIO
 constexpr char kLinkAudioMainOutputName[] = "Mixxx Main";
+std::string makeLinkAudioPeerName() {
+    return QStringLiteral("Mixxx %1")
+            .arg(QUuid::createUuid().toString(QUuid::WithoutBraces).left(8))
+            .toStdString();
+}
 #endif
 thread_local const AbletonLink* s_pAudioCallbackLink = nullptr;
 #endif
@@ -46,6 +52,116 @@ int normalizeLaunchQuantumBeats(double requested, int fallback) {
 }
 } // anonymous namespace
 
+#if defined(__ABLETONLINK__) && defined(MIXXX_ABLETON_LINK_AUDIO)
+AbletonLink::LinkAudioInput::LinkAudioInput(MixxxAbletonLink::Channel channel)
+        : id(channel.id),
+          name(QString::fromStdString(channel.name)),
+          peerName(QString::fromStdString(channel.peerName)) {
+}
+
+bool AbletonLink::LinkAudioInput::matches(const MixxxAbletonLink::Channel& channel) const {
+    return id == channel.id;
+}
+
+void AbletonLink::LinkAudioInput::updateMetadata(const MixxxAbletonLink::Channel& channel) {
+    name = QString::fromStdString(channel.name);
+    peerName = QString::fromStdString(channel.peerName);
+}
+
+void AbletonLink::LinkAudioInput::onBuffer(
+        ableton::LinkAudioSource::BufferHandle bufferHandle) {
+    if (!bufferHandle.samples ||
+            bufferHandle.info.numFrames == 0 ||
+            bufferHandle.info.numChannels == 0 ||
+            bufferHandle.info.sampleRate == 0) {
+        return;
+    }
+
+    if (queued.load(std::memory_order_acquire) >= kBufferSlots) {
+        return;
+    }
+
+    const std::size_t write = writeIndex.load(std::memory_order_relaxed);
+    Buffer& buffer = buffers[write];
+    constexpr std::size_t kOutputChannels = 2;
+    const std::size_t numFrames = std::min<std::size_t>(
+            bufferHandle.info.numFrames,
+            kMaxEngineSamples / kOutputChannels);
+    buffer.numFrames = numFrames;
+    buffer.numChannels = kOutputChannels;
+    buffer.sampleRate = bufferHandle.info.sampleRate;
+
+    for (std::size_t frame = 0; frame < numFrames; ++frame) {
+        const auto* inputFrame = bufferHandle.samples +
+                (frame * bufferHandle.info.numChannels);
+        const CSAMPLE left = static_cast<CSAMPLE>(inputFrame[0]) /
+                static_cast<CSAMPLE>(-SAMPLE_MINIMUM);
+        const CSAMPLE right = bufferHandle.info.numChannels > 1
+                ? static_cast<CSAMPLE>(inputFrame[1]) /
+                        static_cast<CSAMPLE>(-SAMPLE_MINIMUM)
+                : left;
+        buffer.samples[(frame * kOutputChannels)] = left;
+        buffer.samples[(frame * kOutputChannels) + 1] = right;
+    }
+
+    writeIndex.store((write + 1) % kBufferSlots, std::memory_order_release);
+    queued.fetch_add(1, std::memory_order_release);
+}
+
+bool AbletonLink::LinkAudioInput::mixInto(
+        CSAMPLE* pBuffer,
+        std::size_t bufferSize,
+        mixxx::audio::SampleRate sampleRate,
+        CSAMPLE_GAIN gain) {
+    if (!pBuffer || bufferSize == 0 || !sampleRate.isValid() || gain <= 0) {
+        return false;
+    }
+
+    constexpr std::size_t kOutputChannels = 2;
+    const std::size_t outputFrames = bufferSize / kOutputChannels;
+    bool mixed = false;
+
+    for (std::size_t outputFrame = 0; outputFrame < outputFrames; ++outputFrame) {
+        while (queued.load(std::memory_order_acquire) > 0) {
+            const std::size_t read = readIndex.load(std::memory_order_relaxed);
+            const Buffer& buffer = buffers[read];
+            if (readFramePosition < static_cast<double>(buffer.numFrames)) {
+                break;
+            }
+            readFramePosition -= static_cast<double>(buffer.numFrames);
+            readIndex.store((read + 1) % kBufferSlots, std::memory_order_release);
+            queued.fetch_sub(1, std::memory_order_release);
+        }
+
+        if (queued.load(std::memory_order_acquire) == 0) {
+            readFramePosition = 0.0;
+            break;
+        }
+
+        const std::size_t read = readIndex.load(std::memory_order_relaxed);
+        const Buffer& buffer = buffers[read];
+        if (buffer.numFrames == 0 || buffer.sampleRate == 0) {
+            readFramePosition = static_cast<double>(buffer.numFrames);
+            continue;
+        }
+
+        const std::size_t inputFrame = std::min<std::size_t>(
+                static_cast<std::size_t>(readFramePosition),
+                buffer.numFrames - 1);
+        pBuffer[(outputFrame * kOutputChannels)] +=
+                buffer.samples[(inputFrame * kOutputChannels)] * gain;
+        pBuffer[(outputFrame * kOutputChannels) + 1] +=
+                buffer.samples[(inputFrame * kOutputChannels) + 1] * gain;
+        mixed = true;
+
+        readFramePosition += static_cast<double>(buffer.sampleRate) /
+                static_cast<double>(sampleRate.value());
+    }
+
+    return mixed;
+}
+#endif
+
 AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
         : m_group(group),
           m_pEngineSync(pEngineSync),
@@ -53,7 +169,11 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
           m_linkEnabled(false),
           m_startStopSyncEnabled(false),
           m_linkAudioEnabled(false),
+          m_linkAudioReceiveEnabled(false),
+          m_linkAudioReceiveMuted(false),
+          m_linkAudioReceiveGain(1.0),
           m_numLinkAudioChannels(0),
+          m_numLinkAudioReceiveChannels(0),
           m_launchQuantumBeats(kDefaultLaunchQuantumBeats),
           m_pendingStartStopSyncState(kNoPendingStartStopSyncState),
           m_numPeers(0),
@@ -68,9 +188,10 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
           m_scheduledStartStopSyncGeneration(0),
 #ifdef __ABLETONLINK__
 #ifdef MIXXX_ABLETON_LINK_AUDIO
+          m_linkAudioPeerName(makeLinkAudioPeerName()),
           m_pLink(std::make_unique<MixxxAbletonLink>(
                   kDefaultLinkTempo,
-                  kLinkAudioPeerName)),
+                  m_linkAudioPeerName)),
 #else
           m_pLink(std::make_unique<MixxxAbletonLink>(kDefaultLinkTempo)),
 #endif
@@ -79,6 +200,7 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
           m_audioSessionState(),
 #ifdef MIXXX_ABLETON_LINK_AUDIO
           m_linkAudioOutputs(),
+          m_linkAudioInputs(std::make_shared<std::vector<std::shared_ptr<LinkAudioInput>>>()),
 #endif
 #endif
           m_pLinkButton(std::make_unique<ControlPushButton>(
@@ -90,6 +212,21 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
           m_pLinkAudioButton(std::make_unique<ControlPushButton>(
                   ConfigKey(group, "link_audio_enabled"),
                   true)),
+          m_pLinkAudioReceiveButton(std::make_unique<ControlPushButton>(
+                  ConfigKey(group, "link_audio_receive_enabled"),
+                  true)),
+          m_pLinkAudioReceiveMuteButton(std::make_unique<ControlPushButton>(
+                  ConfigKey(group, "link_audio_receive_muted"),
+                  true)),
+          m_pLinkAudioReceiveGain(std::make_unique<ControlPotmeter>(
+                  ConfigKey(group, "link_audio_receive_gain"),
+                  0.0,
+                  2.0,
+                  false,
+                  true,
+                  false,
+                  true,
+                  1.0)),
           m_pQuantizedLaunchButton(std::make_unique<ControlPushButton>(
                   ConfigKey(group, "quantized_launch"))),
           m_pEnabled(std::make_unique<ControlObject>(ConfigKey(group, "enabled"))),
@@ -97,6 +234,10 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
                   ConfigKey(group, "link_audio_available"))),
           m_pLinkAudioNumChannels(std::make_unique<ControlObject>(
                   ConfigKey(group, "link_audio_num_channels"))),
+          m_pLinkAudioReceiveNumChannels(std::make_unique<ControlObject>(
+                  ConfigKey(group, "link_audio_receive_num_channels"))),
+          m_pLinkAudioReceiveActive(std::make_unique<ControlObject>(
+                  ConfigKey(group, "link_audio_receive_active"))),
           m_pNumLinkPeers(std::make_unique<ControlObject>(ConfigKey(group, "num_peers"))),
           m_pBpm(std::make_unique<ControlObject>(ConfigKey(group, "bpm"))),
           m_pBeatDistance(std::make_unique<ControlObject>(ConfigKey(group, "beat_distance"))),
@@ -125,6 +266,10 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
     m_pStartStopSyncButton->setStates(2);
     m_pLinkAudioButton->setButtonMode(mixxx::control::ButtonMode::Toggle);
     m_pLinkAudioButton->setStates(2);
+    m_pLinkAudioReceiveButton->setButtonMode(mixxx::control::ButtonMode::Toggle);
+    m_pLinkAudioReceiveButton->setStates(2);
+    m_pLinkAudioReceiveMuteButton->setButtonMode(mixxx::control::ButtonMode::Toggle);
+    m_pLinkAudioReceiveMuteButton->setStates(2);
     m_pQuantizedLaunchButton->setButtonMode(mixxx::control::ButtonMode::Trigger);
 
     connect(m_pLinkButton.get(),
@@ -139,6 +284,18 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
             &ControlObject::valueChanged,
             this,
             &AbletonLink::slotControlLinkAudioEnabled);
+    connect(m_pLinkAudioReceiveButton.get(),
+            &ControlObject::valueChanged,
+            this,
+            &AbletonLink::slotControlLinkAudioReceiveEnabled);
+    connect(m_pLinkAudioReceiveMuteButton.get(),
+            &ControlObject::valueChanged,
+            this,
+            &AbletonLink::slotControlLinkAudioReceiveMuted);
+    connect(m_pLinkAudioReceiveGain.get(),
+            &ControlObject::valueChanged,
+            this,
+            &AbletonLink::slotControlLinkAudioReceiveGain);
     connect(m_pQuantizedLaunchButton.get(),
             &ControlObject::valueChanged,
             this,
@@ -156,6 +313,8 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
     m_pEnabled->setReadOnly();
     m_pLinkAudioAvailable->setReadOnly();
     m_pLinkAudioNumChannels->setReadOnly();
+    m_pLinkAudioReceiveNumChannels->setReadOnly();
+    m_pLinkAudioReceiveActive->setReadOnly();
     m_pNumLinkPeers->setReadOnly();
     m_pBpm->setReadOnly();
     m_pBeatDistance->setReadOnly();
@@ -244,6 +403,9 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
     m_pQuantum->forceSet(getQuantum());
     slotControlLaunchQuantum(m_pLaunchQuantum->get());
     setLinkAudioEnabled(m_pLinkAudioButton->get() > 0);
+    setLinkAudioReceiveEnabled(m_pLinkAudioReceiveButton->get() > 0);
+    slotControlLinkAudioReceiveMuted(m_pLinkAudioReceiveMuteButton->get());
+    slotControlLinkAudioReceiveGain(m_pLinkAudioReceiveGain->get());
     setStartStopSyncEnabled(m_pStartStopSyncButton->get() > 0);
     setEnabled(m_pLinkButton->get() > 0);
     publishSessionState(mixxx::Bpm(kDefaultLinkTempo), 0.0, false);
@@ -251,6 +413,8 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
     m_pHostTimeFilterEnabled->forceSet(0.0);
     m_pNextBeatTime->forceSet(0.0);
     m_pNextBeatEta->forceSet(0.0);
+    m_pLinkAudioReceiveNumChannels->forceSet(0.0);
+    m_pLinkAudioReceiveActive->forceSet(0.0);
     clearQuantizedLaunchTime();
 }
 
@@ -282,6 +446,21 @@ void AbletonLink::slotControlStartStopSyncEnabled(double value) {
 
 void AbletonLink::slotControlLinkAudioEnabled(double value) {
     setLinkAudioEnabled(value > 0);
+}
+
+void AbletonLink::slotControlLinkAudioReceiveEnabled(double value) {
+    setLinkAudioReceiveEnabled(value > 0);
+}
+
+void AbletonLink::slotControlLinkAudioReceiveMuted(double value) {
+    m_linkAudioReceiveMuted.store(value > 0, std::memory_order_relaxed);
+    m_pLinkAudioReceiveMuteButton->forceSet(value > 0 ? 1.0 : 0.0);
+}
+
+void AbletonLink::slotControlLinkAudioReceiveGain(double value) {
+    const double gain = std::clamp(value, 0.0, 2.0);
+    m_linkAudioReceiveGain.store(gain, std::memory_order_relaxed);
+    m_pLinkAudioReceiveGain->forceSet(gain);
 }
 
 void AbletonLink::slotControlQuantizedLaunch(double value) {
@@ -450,8 +629,22 @@ void AbletonLink::setLinkAudioEnabled(bool enabled) {
 #ifdef MIXXX_ABLETON_LINK_AUDIO
     m_pLink->enableLinkAudio(effectiveEnabled);
 #endif
+    if (!effectiveEnabled) {
+        setLinkAudioReceiveEnabled(false);
+    }
     m_pLinkAudioButton->forceSet(effectiveEnabled ? 1.0 : 0.0);
     m_pLinkAudioAvailable->forceSet(isLinkAudioAvailable() ? 1.0 : 0.0);
+    updateLinkAudioChannels();
+}
+
+bool AbletonLink::isLinkAudioReceiveEnabled() const {
+    return m_linkAudioReceiveEnabled.load(std::memory_order_relaxed);
+}
+
+void AbletonLink::setLinkAudioReceiveEnabled(bool enabled) {
+    const bool effectiveEnabled = enabled && isLinkAudioAvailable() && isLinkAudioEnabled();
+    m_linkAudioReceiveEnabled.store(effectiveEnabled, std::memory_order_relaxed);
+    m_pLinkAudioReceiveButton->forceSet(effectiveEnabled ? 1.0 : 0.0);
     updateLinkAudioChannels();
 }
 
@@ -813,6 +1006,44 @@ void AbletonLink::publishLinkAudioOutput(
 #endif
 }
 
+void AbletonLink::mixInboundLinkAudioMainOutput(
+        CSAMPLE* pBuffer,
+        std::size_t bufferSize,
+        mixxx::audio::SampleRate sampleRate) {
+#if defined(__ABLETONLINK__) && defined(MIXXX_ABLETON_LINK_AUDIO)
+    if (!isEnabled() ||
+            !isLinkAudioEnabled() ||
+            !isLinkAudioReceiveEnabled() ||
+            m_linkAudioReceiveMuted.load(std::memory_order_relaxed) ||
+            !pBuffer ||
+            bufferSize == 0 ||
+            !sampleRate.isValid()) {
+        m_pLinkAudioReceiveActive->forceSet(0.0);
+        return;
+    }
+
+    const auto inputs = m_linkAudioInputs.load(std::memory_order_acquire);
+    if (!inputs || inputs->empty()) {
+        m_pLinkAudioReceiveActive->forceSet(0.0);
+        return;
+    }
+
+    const CSAMPLE_GAIN gain = static_cast<CSAMPLE_GAIN>(
+            m_linkAudioReceiveGain.load(std::memory_order_relaxed));
+    bool mixed = false;
+    for (const auto& input : *inputs) {
+        if (input) {
+            mixed = input->mixInto(pBuffer, bufferSize, sampleRate, gain) || mixed;
+        }
+    }
+    m_pLinkAudioReceiveActive->forceSet(mixed ? 1.0 : 0.0);
+#else
+    Q_UNUSED(pBuffer)
+    Q_UNUSED(bufferSize)
+    Q_UNUSED(sampleRate)
+#endif
+}
+
 void AbletonLink::setNumPeers(std::size_t numPeers) {
     m_numPeers.store(numPeers, std::memory_order_relaxed);
     m_pNumLinkPeers->forceSet(static_cast<double>(numPeers));
@@ -823,9 +1054,53 @@ void AbletonLink::updateLinkAudioChannels() {
     const auto channels = m_pLink->channels();
     m_numLinkAudioChannels.store(channels.size(), std::memory_order_relaxed);
     m_pLinkAudioNumChannels->forceSet(static_cast<double>(channels.size()));
+
+    auto nextInputs = std::make_shared<std::vector<std::shared_ptr<LinkAudioInput>>>();
+    if (isLinkAudioReceiveEnabled() && isLinkAudioEnabled()) {
+        const auto currentInputs = m_linkAudioInputs.load(std::memory_order_acquire);
+        const QString localPeerName = QString::fromStdString(m_linkAudioPeerName);
+        for (const auto& channel : channels) {
+            if (QString::fromStdString(channel.peerName) == localPeerName) {
+                continue;
+            }
+
+            std::shared_ptr<LinkAudioInput> input;
+            if (currentInputs) {
+                const auto it = std::find_if(
+                        currentInputs->begin(),
+                        currentInputs->end(),
+                        [&channel](const auto& existingInput) {
+                            return existingInput && existingInput->matches(channel);
+                        });
+                if (it != currentInputs->end()) {
+                    input = *it;
+                    input->updateMetadata(channel);
+                }
+            }
+
+            if (!input) {
+                input = std::make_shared<LinkAudioInput>(channel);
+                const std::weak_ptr<LinkAudioInput> weakInput(input);
+                input->pSource = std::make_unique<ableton::LinkAudioSource>(
+                        *m_pLink,
+                        channel.id,
+                        [weakInput](ableton::LinkAudioSource::BufferHandle bufferHandle) {
+                            if (auto pInput = weakInput.lock()) {
+                                pInput->onBuffer(bufferHandle);
+                            }
+                        });
+            }
+            nextInputs->push_back(std::move(input));
+        }
+    }
+    m_linkAudioInputs.store(nextInputs, std::memory_order_release);
+    m_numLinkAudioReceiveChannels.store(nextInputs->size(), std::memory_order_relaxed);
+    m_pLinkAudioReceiveNumChannels->forceSet(static_cast<double>(nextInputs->size()));
 #else
     m_numLinkAudioChannels.store(0, std::memory_order_relaxed);
     m_pLinkAudioNumChannels->forceSet(0.0);
+    m_numLinkAudioReceiveChannels.store(0, std::memory_order_relaxed);
+    m_pLinkAudioReceiveNumChannels->forceSet(0.0);
 #endif
     m_pLinkAudioAvailable->forceSet(isLinkAudioAvailable() ? 1.0 : 0.0);
 }

@@ -63,8 +63,19 @@ Public controls in the `[AbletonLink]` group:
 - `start_stop_sync_enabled`: requested Link Start/Stop Sync state.
 - `link_audio_enabled`: requested LinkAudio enable state. This is honored only
   when Mixxx is built with Ableton Link 4.0 or newer headers.
+- `link_audio_receive_enabled`: requested state for mixing remote LinkAudio
+  channels into Mixxx's main output. This is honored only when LinkAudio is
+  available and enabled.
+- `link_audio_receive_muted`: mutes received LinkAudio while keeping
+  subscriptions active.
+- `link_audio_receive_gain`: gain multiplier for received LinkAudio mixed into
+  the main output. Supported range is `0.0` to `2.0`; default is `1.0`.
 - `link_audio_available`: effective build support for LinkAudio.
 - `link_audio_num_channels`: number of discovered LinkAudio channels.
+- `link_audio_receive_num_channels`: number of remote LinkAudio channels Mixxx
+  is currently subscribed to for receive.
+- `link_audio_receive_active`: `1` while received LinkAudio is actively being
+  mixed into the main output.
 - `quantized_launch`: momentary command to start Link transport and synced Mixxx
   decks on the selected launch quantum. Link and Start/Stop Sync must be
   enabled.
@@ -87,9 +98,11 @@ Public controls in the `[AbletonLink]` group:
 - `quantized_launch_eta_micros`: time until the scheduled quantized launch, or
   `0` when no launch is pending.
 
-`sync_enabled`, `start_stop_sync_enabled`, `quantized_launch`, and
-`launch_quantum` are writable. The status controls are read-only observations of
-the active Link session.
+`sync_enabled`, `start_stop_sync_enabled`, `link_audio_enabled`,
+`link_audio_receive_enabled`, `link_audio_receive_muted`,
+`link_audio_receive_gain`, `quantized_launch`, and `launch_quantum` are
+writable. The status controls are read-only observations of the active Link
+session.
 
 Mixxx uses Ableton Link's default platform clock and filters callback-entry
 timestamps with Link's `HostTimeFilter` before adding measured output latency.
@@ -100,14 +113,17 @@ Ableton Link 4.0 adds LinkAudio for peer audio-channel sharing. When Mixxx is
 built with headers that provide `LinkAudio.hpp`, it uses `ableton::LinkAudio`,
 can enable/disable LinkAudio, publishes the final stereo main output as a
 LinkAudio sink named `Mixxx Main`, publishes active local engine sources as
-pre-fader LinkAudio sinks, and publishes discovered LinkAudio channel count.
+pre-fader LinkAudio sinks, can receive remote LinkAudio channels into the main
+output with explicit enable/mute/gain controls, and publishes discovered
+LinkAudio channel counts.
 Per-source channels use stable names such as `Mixxx Deck 1`,
 `Mixxx Sampler 1`, `Mixxx Microphone 1`, `Mixxx Auxiliary 1`, and
 `Mixxx Preview Deck 1`. When built with older Link headers, the LinkAudio
 controls remain available but report unavailable/disabled. Receiving remote
-LinkAudio streams into the Mixxx mixer is intentionally not enabled by default
-because it needs explicit user routing, gain, monitoring, and feedback-loop
-design.
+LinkAudio streams is intentionally disabled by default. Mixxx subscribes only to
+channels from other LinkAudio peers and publishes its own main output before
+inbound receive mixing so received audio is not immediately re-advertised as
+`Mixxx Main`.
 
 ## Recommended manual test
 
@@ -176,7 +192,8 @@ run normally.
   grids.
 - LinkAudio-enabled builds publish Mixxx's final stereo main output as
   `Mixxx Main` and active local engine sources as pre-fader per-source channels.
-  Inbound LinkAudio streams are discovered but not mixed into Mixxx by default.
+  Inbound LinkAudio receive is implemented but disabled by default and mixed
+  only into Mixxx's local main output when explicitly enabled.
 - Link peer discovery depends on local firewall, VPN, multicast, and network
   adapter behavior.
 - On Windows, Ableton Live may hide its own Link button with DirectX/MME. Mixxx
