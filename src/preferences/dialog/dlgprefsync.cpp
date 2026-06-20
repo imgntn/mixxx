@@ -41,6 +41,10 @@ DlgPrefSync::DlgPrefSync(QWidget* pParent)
                   "link_audio_enabled",
                   this,
                   ControlFlag::AllowMissingOrInvalid),
+          m_linkAudioSourcesEnabled(kAbletonLinkGroup,
+                  "link_audio_sources_enabled",
+                  this,
+                  ControlFlag::AllowMissingOrInvalid),
           m_linkAudioReceiveEnabled(kAbletonLinkGroup,
                   "link_audio_receive_enabled",
                   this,
@@ -112,6 +116,7 @@ DlgPrefSync::DlgPrefSync(QWidget* pParent)
           m_pendingLinkEnabled(false),
           m_pendingStartStopSyncEnabled(false),
           m_pendingLinkAudioEnabled(false),
+          m_pendingLinkAudioSourcesEnabled(false),
           m_pendingLinkAudioReceiveEnabled(false),
           m_pendingLinkAudioReceiveMuted(false),
           m_pendingLinkAudioReceiveGain(1.0),
@@ -135,6 +140,10 @@ DlgPrefSync::DlgPrefSync(QWidget* pParent)
             &QCheckBox::toggled,
             this,
             &DlgPrefSync::slotSetLinkAudioEnabled);
+    connect(CheckBoxLinkAudioSources,
+            &QCheckBox::toggled,
+            this,
+            &DlgPrefSync::slotSetLinkAudioSourcesEnabled);
     connect(CheckBoxLinkAudioReceive,
             &QCheckBox::toggled,
             this,
@@ -155,6 +164,7 @@ DlgPrefSync::DlgPrefSync(QWidget* pParent)
     m_effectiveEnabled.connectValueChanged(this, &DlgPrefSync::slotLinkStatusChanged);
     m_startStopSyncEnabled.connectValueChanged(this, &DlgPrefSync::slotLinkStatusChanged);
     m_linkAudioEnabled.connectValueChanged(this, &DlgPrefSync::slotLinkStatusChanged);
+    m_linkAudioSourcesEnabled.connectValueChanged(this, &DlgPrefSync::slotLinkStatusChanged);
     m_linkAudioReceiveEnabled.connectValueChanged(this, &DlgPrefSync::slotLinkStatusChanged);
     m_linkAudioReceiveMuted.connectValueChanged(this, &DlgPrefSync::slotLinkStatusChanged);
     m_linkAudioReceiveGain.connectValueChanged(this, &DlgPrefSync::slotLinkStatusChanged);
@@ -181,6 +191,7 @@ void DlgPrefSync::slotUpdate() {
     setPendingState(m_linkEnabled.valid() && m_linkEnabled.toBool(),
             m_startStopSyncEnabled.valid() && m_startStopSyncEnabled.toBool(),
             m_linkAudioEnabled.valid() && m_linkAudioEnabled.toBool(),
+            m_linkAudioSourcesEnabled.valid() && m_linkAudioSourcesEnabled.toBool(),
             m_linkAudioReceiveEnabled.valid() && m_linkAudioReceiveEnabled.toBool(),
             m_linkAudioReceiveMuted.valid() && m_linkAudioReceiveMuted.toBool(),
             m_linkAudioReceiveGain.valid() ? m_linkAudioReceiveGain.get() : 1.0,
@@ -199,6 +210,7 @@ void DlgPrefSync::slotApply() {
     m_linkEnabled.set(m_pendingLinkEnabled ? 1.0 : 0.0);
     m_startStopSyncEnabled.set(m_pendingStartStopSyncEnabled ? 1.0 : 0.0);
     m_linkAudioEnabled.set(m_pendingLinkAudioEnabled ? 1.0 : 0.0);
+    m_linkAudioSourcesEnabled.set(m_pendingLinkAudioSourcesEnabled ? 1.0 : 0.0);
     m_linkAudioReceiveEnabled.set(m_pendingLinkAudioReceiveEnabled ? 1.0 : 0.0);
     m_linkAudioReceiveMuted.set(m_pendingLinkAudioReceiveMuted ? 1.0 : 0.0);
     m_linkAudioReceiveGain.set(m_pendingLinkAudioReceiveGain);
@@ -208,7 +220,7 @@ void DlgPrefSync::slotApply() {
 void DlgPrefSync::slotResetToDefaults() {
     // Link should be opt-in. Start/Stop Sync is deliberately off by default for
     // DJ workflows where transport control is usually local to Mixxx.
-    setPendingState(false, false, false, false, false, 1.0, 1.0);
+    setPendingState(false, false, false, false, false, false, 1.0, 1.0);
     slotApply();
     updateStatusLabels();
 }
@@ -231,9 +243,14 @@ void DlgPrefSync::slotSetLinkAudioEnabled(bool enabled) {
     const bool linkAudioAvailable = controlsAvailable() &&
             m_linkAudioAvailable.valid() &&
             m_linkAudioAvailable.toBool();
+    CheckBoxLinkAudioSources->setEnabled(enabled && linkAudioAvailable);
     CheckBoxLinkAudioReceive->setEnabled(enabled && linkAudioAvailable);
     CheckBoxLinkAudioReceiveMute->setEnabled(enabled && linkAudioAvailable);
     SpinBoxLinkAudioReceiveGain->setEnabled(enabled && linkAudioAvailable);
+}
+
+void DlgPrefSync::slotSetLinkAudioSourcesEnabled(bool enabled) {
+    m_pendingLinkAudioSourcesEnabled = enabled;
 }
 
 void DlgPrefSync::slotSetLinkAudioReceiveEnabled(bool enabled) {
@@ -265,6 +282,7 @@ bool DlgPrefSync::controlsAvailable() const {
     return m_linkEnabled.valid() &&
             m_startStopSyncEnabled.valid() &&
             m_linkAudioEnabled.valid() &&
+            m_linkAudioSourcesEnabled.valid() &&
             m_linkAudioReceiveEnabled.valid() &&
             m_linkAudioReceiveMuted.valid() &&
             m_linkAudioReceiveGain.valid() &&
@@ -278,6 +296,7 @@ void DlgPrefSync::setPendingState(
         bool linkEnabled,
         bool startStopSyncEnabled,
         bool linkAudioEnabled,
+        bool linkAudioSourcesEnabled,
         bool linkAudioReceiveEnabled,
         bool linkAudioReceiveMuted,
         double linkAudioReceiveGain,
@@ -285,6 +304,7 @@ void DlgPrefSync::setPendingState(
     m_pendingLinkEnabled = linkEnabled;
     m_pendingStartStopSyncEnabled = startStopSyncEnabled;
     m_pendingLinkAudioEnabled = linkAudioEnabled;
+    m_pendingLinkAudioSourcesEnabled = linkAudioSourcesEnabled;
     m_pendingLinkAudioReceiveEnabled = linkAudioReceiveEnabled;
     m_pendingLinkAudioReceiveMuted = linkAudioReceiveMuted;
     m_pendingLinkAudioReceiveGain = std::clamp(linkAudioReceiveGain, 0.0, 2.0);
@@ -293,12 +313,14 @@ void DlgPrefSync::setPendingState(
     const QSignalBlocker linkBlocker(CheckBoxEnableLink);
     const QSignalBlocker startStopBlocker(CheckBoxStartStopSync);
     const QSignalBlocker linkAudioBlocker(CheckBoxLinkAudio);
+    const QSignalBlocker linkAudioSourcesBlocker(CheckBoxLinkAudioSources);
     const QSignalBlocker linkAudioReceiveBlocker(CheckBoxLinkAudioReceive);
     const QSignalBlocker linkAudioReceiveMuteBlocker(CheckBoxLinkAudioReceiveMute);
     const QSignalBlocker linkAudioReceiveGainBlocker(SpinBoxLinkAudioReceiveGain);
     CheckBoxEnableLink->setChecked(m_pendingLinkEnabled);
     CheckBoxStartStopSync->setChecked(m_pendingStartStopSyncEnabled);
     CheckBoxLinkAudio->setChecked(m_pendingLinkAudioEnabled);
+    CheckBoxLinkAudioSources->setChecked(m_pendingLinkAudioSourcesEnabled);
     CheckBoxLinkAudioReceive->setChecked(m_pendingLinkAudioReceiveEnabled);
     CheckBoxLinkAudioReceiveMute->setChecked(m_pendingLinkAudioReceiveMuted);
     SpinBoxLinkAudioReceiveGain->setValue(m_pendingLinkAudioReceiveGain);
@@ -311,6 +333,7 @@ void DlgPrefSync::setPendingState(
     CheckBoxEnableLink->setEnabled(available);
     CheckBoxStartStopSync->setEnabled(available);
     CheckBoxLinkAudio->setEnabled(linkAudioAvailable);
+    CheckBoxLinkAudioSources->setEnabled(linkAudioEnabledEffective);
     CheckBoxLinkAudioReceive->setEnabled(linkAudioEnabledEffective);
     CheckBoxLinkAudioReceiveMute->setEnabled(linkAudioEnabledEffective);
     SpinBoxLinkAudioReceiveGain->setEnabled(linkAudioEnabledEffective);

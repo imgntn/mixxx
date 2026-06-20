@@ -3431,11 +3431,12 @@ TEST_F(EngineSyncTest, LinkStartStopSyncDisableKeepsLinkSessionEnabled) {
 }
 
 TEST_F(EngineSyncTest, AbletonLinkPublicControlsRemainScriptableAndStatusReadOnly) {
-    const std::array<const char*, 24> controls{
+    const std::array<const char*, 25> controls{
             "sync_enabled",
             "enabled",
             "start_stop_sync_enabled",
             "link_audio_enabled",
+            "link_audio_sources_enabled",
             "link_audio_receive_enabled",
             "link_audio_receive_muted",
             "link_audio_receive_gain",
@@ -3527,6 +3528,7 @@ TEST_F(EngineSyncTest, AbletonLinkAudioControlsReflectBuildCapability) {
 #else
     ControlObject::set(ConfigKey("[AbletonLink]", "sync_enabled"), 1.0);
     ControlObject::set(ConfigKey("[AbletonLink]", "link_audio_enabled"), 1.0);
+    ControlObject::set(ConfigKey("[AbletonLink]", "link_audio_sources_enabled"), 1.0);
     ControlObject::set(ConfigKey("[AbletonLink]", "link_audio_receive_enabled"), 1.0);
     ControlObject::set(ConfigKey("[AbletonLink]", "link_audio_receive_gain"), 0.5);
     ControlObject::set(ConfigKey("[AbletonLink]", "link_audio_receive_muted"), 1.0);
@@ -3536,6 +3538,8 @@ TEST_F(EngineSyncTest, AbletonLinkAudioControlsReflectBuildCapability) {
             ControlObject::get(ConfigKey("[AbletonLink]", "link_audio_available")));
     EXPECT_DOUBLE_EQ(1.0,
             ControlObject::get(ConfigKey("[AbletonLink]", "link_audio_enabled")));
+    EXPECT_DOUBLE_EQ(1.0,
+            ControlObject::get(ConfigKey("[AbletonLink]", "link_audio_sources_enabled")));
     EXPECT_DOUBLE_EQ(1.0,
             ControlObject::get(ConfigKey("[AbletonLink]", "link_audio_receive_enabled")));
     EXPECT_DOUBLE_EQ(0.5,
@@ -3577,6 +3581,8 @@ TEST_F(EngineSyncTest, AbletonLinkAudioControlsReflectBuildCapability) {
             ControlObject::get(ConfigKey("[AbletonLink]", "link_audio_available")));
     EXPECT_DOUBLE_EQ(0.0,
             ControlObject::get(ConfigKey("[AbletonLink]", "link_audio_enabled")));
+    EXPECT_DOUBLE_EQ(0.0,
+            ControlObject::get(ConfigKey("[AbletonLink]", "link_audio_sources_enabled")));
     EXPECT_DOUBLE_EQ(0.0,
             ControlObject::get(ConfigKey("[AbletonLink]", "link_audio_receive_enabled")));
 #endif
@@ -4468,7 +4474,7 @@ TEST_F(EngineSyncTest, AbletonLinkControlChaos) {
 
         for (int i = 0; i < 250; ++i) {
             SCOPED_TRACE(QString("seed %1 iteration %2").arg(seed).arg(i).toStdString());
-            switch (next() % 18u) {
+            switch (next() % 21u) {
             case 0:
                 ControlObject::set(ConfigKey("[AbletonLink]", "sync_enabled"), bit());
                 break;
@@ -4539,6 +4545,19 @@ TEST_F(EngineSyncTest, AbletonLinkControlChaos) {
                         ControlObject::get(ConfigKey("[AbletonLink]", "launch_quantum")));
                 break;
             }
+            case 17:
+                ControlObject::set(ConfigKey("[AbletonLink]", "link_audio_enabled"), bit());
+                break;
+            case 18:
+                ControlObject::set(
+                        ConfigKey("[AbletonLink]", "link_audio_sources_enabled"),
+                        bit());
+                break;
+            case 19:
+                ControlObject::set(
+                        ConfigKey("[AbletonLink]", "link_audio_receive_enabled"),
+                        bit());
+                break;
             default:
                 ProcessBuffer();
                 ProcessBuffer();

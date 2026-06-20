@@ -1,8 +1,8 @@
 # Ableton Link manual verification
 
-Use this checklist for release validation that requires real audio devices,
-Ableton Live, another Link-capable peer, operating system networking, or
-long-running observation.
+Use this checklist for validation that requires real audio devices, Ableton
+Live, another Link-capable peer, operating system networking, or long-running
+observation.
 
 ## Test environment record
 
@@ -29,27 +29,45 @@ Record these values for every manual run:
    package under test.
 3. Confirm Live shows its own `Link` button.
 4. Enable Link in Live.
-5. Open `res/abletonlink/templates/example_ableton_mixxx_link_template_set.als`
-   or any simple set with a visible clip/metronome reference.
-6. Start Mixxx built with `ABLETONLINK=ON`.
-7. Enable Mixxx `Link`.
-8. Confirm Mixxx peer count becomes at least `1`.
-9. Change Live's tempo and confirm Mixxx `[AbletonLink],bpm` follows.
-10. Change Mixxx leader tempo and confirm Live follows.
-11. Enable Sync on a Mixxx deck and press play.
-12. Confirm deck tempo and beat phase align with the Link session.
-13. Enable Mixxx Start/Stop Sync.
-14. Start and stop Live transport.
-15. Confirm synced Mixxx decks start and stop with Live transport.
-16. Stop Mixxx decks, keep Link and Start/Stop Sync enabled, then press
+5. Start Mixxx built with `ABLETONLINK=ON`.
+6. Enable Mixxx `Link`.
+7. Confirm Mixxx peer count becomes at least `1`.
+8. Change Live's tempo and confirm Mixxx `[AbletonLink],bpm` follows.
+9. Change Mixxx leader tempo and confirm Live follows.
+10. Enable Sync on a Mixxx deck and press play.
+11. Confirm deck tempo and beat phase align with the Link session.
+12. Enable Mixxx Start/Stop Sync.
+13. Start and stop Live transport.
+14. Confirm synced Mixxx decks start and stop with Live transport.
+15. Stop Mixxx decks, keep Link and Start/Stop Sync enabled, then press
     `Launch`.
-17. Set launch quantum to `1`, then confirm synced Mixxx decks start on the next
+16. Set launch quantum to `1`, then confirm synced Mixxx decks start on the next
     Link beat.
-18. Repeat with launch quantum `4`, then confirm synced Mixxx decks wait for a
+17. Repeat with launch quantum `4`, then confirm synced Mixxx decks wait for a
     later matching Link quantum boundary instead of starting immediately.
 
 Expected result: tempo, phase, peer count, Start/Stop Sync, and quantized launch
 all behave consistently, with no stale launch indicator after cancellation.
+
+## Link Audio publish and receive
+
+Run this only for builds where `[AbletonLink],link_audio_available` is `1`.
+
+1. Enable Mixxx Link and Link Audio.
+2. Confirm Mixxx publishes `Mixxx Main` to another Link Audio-capable peer.
+3. Enable `Publish source channels separately`.
+4. Confirm active decks, samplers, microphones, auxiliary inputs, or preview
+   decks appear as separate source channels when they are active.
+5. Disable `Publish source channels separately`.
+6. Confirm `Mixxx Main` remains available and per-source channels are removed.
+7. Enable Link Audio receive in Mixxx.
+8. Publish audio from a different Link Audio peer.
+9. Confirm received audio is mixed into Mixxx's main output.
+10. Toggle receive mute and adjust receive gain.
+
+Expected result: main-output publishing is controlled by Link Audio enable,
+per-source publishing is controlled separately, and received audio remains
+timeline-aligned with the Link session.
 
 ## Windows DirectX/MME Ableton Live check
 
@@ -81,17 +99,15 @@ sample utility if available in the local Ableton Link source package.
 Expected result: Mixxx behaves the same with non-Live Link peers as it does with
 Ableton Live.
 
-## Official Link audio-engine alignment
-
-This follows Ableton's Link test-plan intent for audio-engine latency
-compensation.
+## Audio-engine alignment
 
 1. Start LinkHut or another click-like Link reference peer.
 2. Enable Link in the reference peer and start playback.
 3. Enable Link in Mixxx.
 4. Play a short, click-like sample from a synced Mixxx deck on the same beats as
    the reference peer.
-5. Record both outputs through physical loopback or a reliable software loopback.
+5. Record both outputs through physical loopback or a reliable software
+   loopback.
 6. Measure onset alignment between the reference click and Mixxx output.
 
 Expected result: Mixxx and the reference peer align within 3 ms. Record the
@@ -129,18 +145,6 @@ Run this with Mixxx linked to at least one external peer.
 
 Expected result: Mixxx remains stable, Link recovers, and no stale scheduled
 launch fires after audio-device changes.
-
-## macOS and Linux platform pass
-
-Run the platform-specific checklist in:
-
-```text
-res/abletonlink/CROSS_PLATFORM_VALIDATION.md
-```
-
-Expected result: macOS and Linux builds pass the same Link behavior checks, with
-differences limited to local firewall, multicast, audio backend, and loopback
-routing setup.
 
 ## Long-run soak
 

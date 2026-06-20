@@ -3220,7 +3220,7 @@ option(ABLETONLINK "Support Ableton Link tempo synchronization" ON)
 cmake_dependent_option(
   FETCH_ABLETONLINK
   "Download Ableton Link during configure if no system package is found"
-  ON
+  OFF
   "ABLETONLINK"
   OFF
 )

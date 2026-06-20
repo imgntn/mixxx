@@ -74,6 +74,8 @@ class AbletonLink : public QObject, public Syncable {
     /// - [AbletonLink],sync_enabled toggles session participation.
     /// - [AbletonLink],start_stop_sync_enabled toggles Link transport sync.
     /// - [AbletonLink],link_audio_enabled toggles LinkAudio channel discovery.
+    /// - [AbletonLink],link_audio_sources_enabled toggles per-source LinkAudio
+    ///   publishing. The main output is published when LinkAudio is enabled.
     /// - [AbletonLink],enabled mirrors the effective enabled state.
     /// - [AbletonLink],launch_quantum sets the quantized Launch grid in beats.
     /// - [AbletonLink],link_audio_available, link_audio_num_channels,
@@ -113,6 +115,8 @@ class AbletonLink : public QObject, public Syncable {
     bool isLinkAudioAvailable() const;
     bool isLinkAudioEnabled() const;
     void setLinkAudioEnabled(bool enabled);
+    bool isLinkAudioSourcesEnabled() const;
+    void setLinkAudioSourcesEnabled(bool enabled);
     bool isLinkAudioReceiveEnabled() const;
     void setLinkAudioReceiveEnabled(bool enabled);
     void requestStartStopSync(bool playing);
@@ -182,6 +186,7 @@ class AbletonLink : public QObject, public Syncable {
     void slotControlSyncEnabled(double value);
     void slotControlStartStopSyncEnabled(double value);
     void slotControlLinkAudioEnabled(double value);
+    void slotControlLinkAudioSourcesEnabled(double value);
     void slotControlLinkAudioReceiveEnabled(double value);
     void slotControlLinkAudioReceiveMuted(double value);
     void slotControlLinkAudioReceiveGain(double value);
@@ -193,6 +198,7 @@ class AbletonLink : public QObject, public Syncable {
             uint64_t generation);
     void setNumPeers(std::size_t numPeers);
     void updateLinkAudioChannels();
+    void updateLinkAudioOutputSinks();
     void publishSessionState(mixxx::Bpm bpm, double beatDistance, bool playing);
     void publishCallbackTempo(double bpm);
     void applyScheduledStartStopSync();
@@ -214,6 +220,7 @@ class AbletonLink : public QObject, public Syncable {
     std::atomic_bool m_linkEnabled;
     std::atomic_bool m_startStopSyncEnabled;
     std::atomic_bool m_linkAudioEnabled;
+    std::atomic_bool m_linkAudioSourcesEnabled;
     std::atomic_bool m_linkAudioReceiveEnabled;
     std::atomic_bool m_linkAudioReceiveMuted;
     std::atomic<double> m_linkAudioReceiveGain;
@@ -254,6 +261,7 @@ class AbletonLink : public QObject, public Syncable {
             std::size_t numFrames{0};
             std::size_t numChannels{0};
             uint32_t sampleRate{0};
+            ableton::LinkAudioSource::BufferHandle::Info info{};
         };
 
         static constexpr std::size_t kBufferSlots = 32;
@@ -267,6 +275,9 @@ class AbletonLink : public QObject, public Syncable {
                 CSAMPLE* pBuffer,
                 std::size_t bufferSize,
                 mixxx::audio::SampleRate sampleRate,
+                const MixxxAbletonLinkSessionState& sessionState,
+                std::chrono::microseconds callbackTime,
+                double quantum,
                 CSAMPLE_GAIN gain);
 
         ableton::ChannelId id;
@@ -277,7 +288,6 @@ class AbletonLink : public QObject, public Syncable {
         std::atomic_size_t writeIndex{0};
         std::atomic_size_t readIndex{0};
         std::atomic_size_t queued{0};
-        double readFramePosition{0.0};
     };
     std::vector<LinkAudioOutput> m_linkAudioOutputs;
     std::atomic<std::shared_ptr<std::vector<std::shared_ptr<LinkAudioInput>>>> m_linkAudioInputs;
@@ -286,6 +296,7 @@ class AbletonLink : public QObject, public Syncable {
     std::unique_ptr<ControlPushButton> m_pLinkButton;
     std::unique_ptr<ControlPushButton> m_pStartStopSyncButton;
     std::unique_ptr<ControlPushButton> m_pLinkAudioButton;
+    std::unique_ptr<ControlPushButton> m_pLinkAudioSourcesButton;
     std::unique_ptr<ControlPushButton> m_pLinkAudioReceiveButton;
     std::unique_ptr<ControlPushButton> m_pLinkAudioReceiveMuteButton;
     std::unique_ptr<ControlPotmeter> m_pLinkAudioReceiveGain;

@@ -20,6 +20,7 @@ class DlgPrefSync : public DlgPreferencePage, public Ui::DlgPrefSyncDlg {
     void slotSetLinkEnabled(bool enabled);
     void slotSetStartStopSyncEnabled(bool enabled);
     void slotSetLinkAudioEnabled(bool enabled);
+    void slotSetLinkAudioSourcesEnabled(bool enabled);
     void slotSetLinkAudioReceiveEnabled(bool enabled);
     void slotSetLinkAudioReceiveMuted(bool muted);
     void slotSetLinkAudioReceiveGain(double gain);
@@ -32,6 +33,7 @@ class DlgPrefSync : public DlgPreferencePage, public Ui::DlgPrefSyncDlg {
             bool linkEnabled,
             bool startStopSyncEnabled,
             bool linkAudioEnabled,
+            bool linkAudioSourcesEnabled,
             bool linkAudioReceiveEnabled,
             bool linkAudioReceiveMuted,
             double linkAudioReceiveGain,
@@ -45,6 +47,7 @@ class DlgPrefSync : public DlgPreferencePage, public Ui::DlgPrefSyncDlg {
     ControlProxy m_effectiveEnabled;
     ControlProxy m_startStopSyncEnabled;
     ControlProxy m_linkAudioEnabled;
+    ControlProxy m_linkAudioSourcesEnabled;
     ControlProxy m_linkAudioReceiveEnabled;
     ControlProxy m_linkAudioReceiveMuted;
     ControlProxy m_linkAudioReceiveGain;
@@ -66,6 +69,7 @@ class DlgPrefSync : public DlgPreferencePage, public Ui::DlgPrefSyncDlg {
     bool m_pendingLinkEnabled;
     bool m_pendingStartStopSyncEnabled;
     bool m_pendingLinkAudioEnabled;
+    bool m_pendingLinkAudioSourcesEnabled;
     bool m_pendingLinkAudioReceiveEnabled;
     bool m_pendingLinkAudioReceiveMuted;
     double m_pendingLinkAudioReceiveGain;

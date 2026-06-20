@@ -22,6 +22,7 @@
 namespace {
 constexpr double kDefaultLinkTempo = 120.0;
 constexpr double kBeatSyncQuantum = 1.0;
+constexpr double kLinkAudioReceiveLatencyBeats = 4.0;
 constexpr int kDefaultLaunchQuantumBeats = 1;
 constexpr std::array<int, 4> kSupportedLaunchQuantumBeats{1, 2, 4, 8};
 constexpr int kNoPendingStartStopSyncState = -1;
@@ -49,6 +50,19 @@ int normalizeLaunchQuantumBeats(double requested, int fallback) {
         }
     }
     return fallback;
+}
+
+double linearInterpolate(
+        double value,
+        double inMin,
+        double inMax,
+        double outMin,
+        double outMax) {
+    const double inRange = inMax - inMin;
+    if (std::abs(inRange) < 1e-12) {
+        return outMin;
+    }
+    return outMin + ((value - inMin) / inRange) * (outMax - outMin);
 }
 } // anonymous namespace
 
@@ -90,6 +104,9 @@ void AbletonLink::LinkAudioInput::onBuffer(
     buffer.numFrames = numFrames;
     buffer.numChannels = kOutputChannels;
     buffer.sampleRate = bufferHandle.info.sampleRate;
+    buffer.info = bufferHandle.info;
+    buffer.info.numChannels = kOutputChannels;
+    buffer.info.numFrames = numFrames;
 
     for (std::size_t frame = 0; frame < numFrames; ++frame) {
         const auto* inputFrame = bufferHandle.samples +
@@ -112,6 +129,9 @@ bool AbletonLink::LinkAudioInput::mixInto(
         CSAMPLE* pBuffer,
         std::size_t bufferSize,
         mixxx::audio::SampleRate sampleRate,
+        const MixxxAbletonLinkSessionState& sessionState,
+        std::chrono::microseconds callbackTime,
+        double quantum,
         CSAMPLE_GAIN gain) {
     if (!pBuffer || bufferSize == 0 || !sampleRate.isValid() || gain <= 0) {
         return false;
@@ -119,43 +139,125 @@ bool AbletonLink::LinkAudioInput::mixInto(
 
     constexpr std::size_t kOutputChannels = 2;
     const std::size_t outputFrames = bufferSize / kOutputChannels;
+    if (outputFrames == 0) {
+        return false;
+    }
+
+    const auto outputDuration = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::duration<double>(
+                    static_cast<double>(outputFrames) /
+                    static_cast<double>(sampleRate.value())));
+    const double targetBeginBeat =
+            sessionState.beatAtTime(callbackTime, quantum) - kLinkAudioReceiveLatencyBeats;
+    const double targetEndBeat =
+            sessionState.beatAtTime(callbackTime + outputDuration, quantum) -
+            kLinkAudioReceiveLatencyBeats;
     bool mixed = false;
 
-    for (std::size_t outputFrame = 0; outputFrame < outputFrames; ++outputFrame) {
-        while (queued.load(std::memory_order_acquire) > 0) {
-            const std::size_t read = readIndex.load(std::memory_order_relaxed);
-            const Buffer& buffer = buffers[read];
-            if (readFramePosition < static_cast<double>(buffer.numFrames)) {
-                break;
-            }
-            readFramePosition -= static_cast<double>(buffer.numFrames);
+    while (queued.load(std::memory_order_acquire) > 0) {
+        const std::size_t read = readIndex.load(std::memory_order_relaxed);
+        const Buffer& buffer = buffers[read];
+        const auto endBeat = buffer.info.endBeats(sessionState, quantum);
+        if (!endBeat || *endBeat <= targetBeginBeat) {
             readIndex.store((read + 1) % kBufferSlots, std::memory_order_release);
             queued.fetch_sub(1, std::memory_order_release);
+            continue;
         }
+        break;
+    }
 
-        if (queued.load(std::memory_order_acquire) == 0) {
-            readFramePosition = 0.0;
+    const std::size_t queuedBuffers = queued.load(std::memory_order_acquire);
+    if (queuedBuffers == 0) {
+        return false;
+    }
+
+    auto bufferAt = [this](std::size_t offset) -> const Buffer& {
+        return buffers[(readIndex.load(std::memory_order_relaxed) + offset) % kBufferSlots];
+    };
+
+    const Buffer& firstBuffer = bufferAt(0);
+    const auto firstBeginBeat = firstBuffer.info.beginBeats(sessionState, quantum);
+    const auto firstEndBeat = firstBuffer.info.endBeats(sessionState, quantum);
+    if (!firstBeginBeat || !firstEndBeat || *firstBeginBeat > targetBeginBeat) {
+        return false;
+    }
+
+    double startFramePos = linearInterpolate(
+            targetBeginBeat,
+            *firstBeginBeat,
+            *firstEndBeat,
+            0.0,
+            static_cast<double>(firstBuffer.numFrames));
+    startFramePos = std::clamp(
+            startFramePos,
+            0.0,
+            static_cast<double>(firstBuffer.numFrames));
+
+    double totalSourceFrames = 0.0;
+    bool foundEnd = false;
+    for (std::size_t offset = 0; offset < queuedBuffers; ++offset) {
+        const Buffer& buffer = bufferAt(offset);
+        if (buffer.numFrames == 0 || buffer.sampleRate == 0) {
+            continue;
+        }
+        const auto beginBeat = buffer.info.beginBeats(sessionState, quantum);
+        const auto endBeat = buffer.info.endBeats(sessionState, quantum);
+        if (!beginBeat || !endBeat) {
             break;
         }
 
+        if (targetEndBeat >= *beginBeat && targetEndBeat < *endBeat) {
+            totalSourceFrames += linearInterpolate(
+                    targetEndBeat,
+                    *beginBeat,
+                    *endBeat,
+                    0.0,
+                    static_cast<double>(buffer.numFrames));
+            foundEnd = true;
+            break;
+        }
+        totalSourceFrames += static_cast<double>(buffer.numFrames);
+    }
+
+    totalSourceFrames -= startFramePos;
+    if (!foundEnd || totalSourceFrames <= 0.0) {
+        return false;
+    }
+
+    auto sampleAt = [&bufferAt, queuedBuffers](std::size_t absoluteFrame, std::size_t channel) {
+        for (std::size_t offset = 0; offset < queuedBuffers; ++offset) {
+            const Buffer& buffer = bufferAt(offset);
+            if (absoluteFrame < buffer.numFrames) {
+                return buffer.samples[(absoluteFrame * kOutputChannels) + channel];
+            }
+            absoluteFrame -= buffer.numFrames;
+        }
+        return CSAMPLE(0);
+    };
+
+    const double frameIncrement = totalSourceFrames / static_cast<double>(outputFrames);
+    double readPos = startFramePos;
+    for (std::size_t outputFrame = 0; outputFrame < outputFrames; ++outputFrame) {
+        const std::size_t inputFrame = static_cast<std::size_t>(
+                std::max(0.0, std::floor(readPos)));
+        pBuffer[(outputFrame * kOutputChannels)] +=
+                sampleAt(inputFrame, 0) * gain;
+        pBuffer[(outputFrame * kOutputChannels) + 1] +=
+                sampleAt(inputFrame, 1) * gain;
+        mixed = true;
+        readPos += frameIncrement;
+    }
+
+    while (queued.load(std::memory_order_acquire) > 0) {
         const std::size_t read = readIndex.load(std::memory_order_relaxed);
         const Buffer& buffer = buffers[read];
-        if (buffer.numFrames == 0 || buffer.sampleRate == 0) {
-            readFramePosition = static_cast<double>(buffer.numFrames);
+        const auto endBeat = buffer.info.endBeats(sessionState, quantum);
+        if (!endBeat || *endBeat <= targetEndBeat) {
+            readIndex.store((read + 1) % kBufferSlots, std::memory_order_release);
+            queued.fetch_sub(1, std::memory_order_release);
             continue;
         }
-
-        const std::size_t inputFrame = std::min<std::size_t>(
-                static_cast<std::size_t>(readFramePosition),
-                buffer.numFrames - 1);
-        pBuffer[(outputFrame * kOutputChannels)] +=
-                buffer.samples[(inputFrame * kOutputChannels)] * gain;
-        pBuffer[(outputFrame * kOutputChannels) + 1] +=
-                buffer.samples[(inputFrame * kOutputChannels) + 1] * gain;
-        mixed = true;
-
-        readFramePosition += static_cast<double>(buffer.sampleRate) /
-                static_cast<double>(sampleRate.value());
+        break;
     }
 
     return mixed;
@@ -169,6 +271,7 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
           m_linkEnabled(false),
           m_startStopSyncEnabled(false),
           m_linkAudioEnabled(false),
+          m_linkAudioSourcesEnabled(false),
           m_linkAudioReceiveEnabled(false),
           m_linkAudioReceiveMuted(false),
           m_linkAudioReceiveGain(1.0),
@@ -211,6 +314,9 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
                   true)),
           m_pLinkAudioButton(std::make_unique<ControlPushButton>(
                   ConfigKey(group, "link_audio_enabled"),
+                  true)),
+          m_pLinkAudioSourcesButton(std::make_unique<ControlPushButton>(
+                  ConfigKey(group, "link_audio_sources_enabled"),
                   true)),
           m_pLinkAudioReceiveButton(std::make_unique<ControlPushButton>(
                   ConfigKey(group, "link_audio_receive_enabled"),
@@ -266,6 +372,8 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
     m_pStartStopSyncButton->setStates(2);
     m_pLinkAudioButton->setButtonMode(mixxx::control::ButtonMode::Toggle);
     m_pLinkAudioButton->setStates(2);
+    m_pLinkAudioSourcesButton->setButtonMode(mixxx::control::ButtonMode::Toggle);
+    m_pLinkAudioSourcesButton->setStates(2);
     m_pLinkAudioReceiveButton->setButtonMode(mixxx::control::ButtonMode::Toggle);
     m_pLinkAudioReceiveButton->setStates(2);
     m_pLinkAudioReceiveMuteButton->setButtonMode(mixxx::control::ButtonMode::Toggle);
@@ -284,6 +392,10 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
             &ControlObject::valueChanged,
             this,
             &AbletonLink::slotControlLinkAudioEnabled);
+    connect(m_pLinkAudioSourcesButton.get(),
+            &ControlObject::valueChanged,
+            this,
+            &AbletonLink::slotControlLinkAudioSourcesEnabled);
     connect(m_pLinkAudioReceiveButton.get(),
             &ControlObject::valueChanged,
             this,
@@ -403,6 +515,7 @@ AbletonLink::AbletonLink(const QString& group, EngineSync* pEngineSync)
     m_pQuantum->forceSet(getQuantum());
     slotControlLaunchQuantum(m_pLaunchQuantum->get());
     setLinkAudioEnabled(m_pLinkAudioButton->get() > 0);
+    setLinkAudioSourcesEnabled(m_pLinkAudioSourcesButton->get() > 0);
     setLinkAudioReceiveEnabled(m_pLinkAudioReceiveButton->get() > 0);
     slotControlLinkAudioReceiveMuted(m_pLinkAudioReceiveMuteButton->get());
     slotControlLinkAudioReceiveGain(m_pLinkAudioReceiveGain->get());
@@ -446,6 +559,10 @@ void AbletonLink::slotControlStartStopSyncEnabled(double value) {
 
 void AbletonLink::slotControlLinkAudioEnabled(double value) {
     setLinkAudioEnabled(value > 0);
+}
+
+void AbletonLink::slotControlLinkAudioSourcesEnabled(double value) {
+    setLinkAudioSourcesEnabled(value > 0);
 }
 
 void AbletonLink::slotControlLinkAudioReceiveEnabled(double value) {
@@ -590,6 +707,7 @@ void AbletonLink::setEnabled(bool enabled) {
     }
     m_pLinkButton->forceSet(effectiveEnabled ? 1.0 : 0.0);
     m_pEnabled->forceSet(effectiveEnabled ? 1.0 : 0.0);
+    updateLinkAudioOutputSinks();
 }
 
 bool AbletonLink::isStartStopSyncEnabled() const {
@@ -634,6 +752,19 @@ void AbletonLink::setLinkAudioEnabled(bool enabled) {
     }
     m_pLinkAudioButton->forceSet(effectiveEnabled ? 1.0 : 0.0);
     m_pLinkAudioAvailable->forceSet(isLinkAudioAvailable() ? 1.0 : 0.0);
+    updateLinkAudioOutputSinks();
+    updateLinkAudioChannels();
+}
+
+bool AbletonLink::isLinkAudioSourcesEnabled() const {
+    return m_linkAudioSourcesEnabled.load(std::memory_order_relaxed);
+}
+
+void AbletonLink::setLinkAudioSourcesEnabled(bool enabled) {
+    const bool effectiveEnabled = enabled && isLinkAudioAvailable();
+    m_linkAudioSourcesEnabled.store(effectiveEnabled, std::memory_order_relaxed);
+    m_pLinkAudioSourcesButton->forceSet(effectiveEnabled ? 1.0 : 0.0);
+    updateLinkAudioOutputSinks();
     updateLinkAudioChannels();
 }
 
@@ -928,8 +1059,11 @@ void AbletonLink::registerLinkAudioOutput(const QString& group, const QString& n
         if (output.group == group) {
             if (output.name != name) {
                 output.name = name;
-                output.pSink->setName(name.toStdString());
+                if (output.pSink) {
+                    output.pSink->setName(name.toStdString());
+                }
             }
+            updateLinkAudioOutputSinks();
             return;
         }
     }
@@ -937,10 +1071,8 @@ void AbletonLink::registerLinkAudioOutput(const QString& group, const QString& n
     m_linkAudioOutputs.push_back(LinkAudioOutput{
             group,
             name,
-            std::make_unique<ableton::LinkAudioSink>(
-                    *m_pLink,
-                    name.toStdString(),
-                    kMaxEngineSamples)});
+            nullptr});
+    updateLinkAudioOutputSinks();
 #else
     Q_UNUSED(group)
     Q_UNUSED(name)
@@ -1030,10 +1162,22 @@ void AbletonLink::mixInboundLinkAudioMainOutput(
 
     const CSAMPLE_GAIN gain = static_cast<CSAMPLE_GAIN>(
             m_linkAudioReceiveGain.load(std::memory_order_relaxed));
+    const auto sessionState = m_audioSessionState
+            ? *m_audioSessionState
+            : m_pLink->captureAudioSessionState();
+    const auto callbackTime = currentCallbackTime();
     bool mixed = false;
     for (const auto& input : *inputs) {
         if (input) {
-            mixed = input->mixInto(pBuffer, bufferSize, sampleRate, gain) || mixed;
+            mixed = input->mixInto(
+                            pBuffer,
+                            bufferSize,
+                            sampleRate,
+                            sessionState,
+                            callbackTime,
+                            getQuantum(),
+                            gain) ||
+                    mixed;
         }
     }
     m_pLinkAudioReceiveActive->forceSet(mixed ? 1.0 : 0.0);
@@ -1041,6 +1185,27 @@ void AbletonLink::mixInboundLinkAudioMainOutput(
     Q_UNUSED(pBuffer)
     Q_UNUSED(bufferSize)
     Q_UNUSED(sampleRate)
+#endif
+}
+
+void AbletonLink::updateLinkAudioOutputSinks() {
+#if defined(__ABLETONLINK__) && defined(MIXXX_ABLETON_LINK_AUDIO)
+    const bool canPublish = isEnabled() && isLinkAudioEnabled();
+    const bool publishSources = isLinkAudioSourcesEnabled();
+    for (auto& output : m_linkAudioOutputs) {
+        const bool isMainOutput = output.group == QStringLiteral("[Main]");
+        const bool shouldPublish = canPublish && (isMainOutput || publishSources);
+        if (shouldPublish && !output.pSink) {
+            output.pSink = std::make_unique<ableton::LinkAudioSink>(
+                    *m_pLink,
+                    output.name.toStdString(),
+                    kMaxEngineSamples);
+        } else if (!shouldPublish && output.pSink) {
+            output.pSink.reset();
+        } else if (shouldPublish && output.pSink) {
+            output.pSink->setName(output.name.toStdString());
+        }
+    }
 #endif
 }
 

@@ -430,18 +430,48 @@ ControlPickerMenu::ControlPickerMenu(QWidget* pParent)
             pSyncMenu);
     addControl("[AbletonLink]",
             "link_audio_enabled",
-            tr("Ableton LinkAudio"),
-            tr("Enable Ableton LinkAudio channel discovery when available"),
+            tr("Ableton Link Audio"),
+            tr("Enable Ableton Link Audio channel discovery and publish Mixxx's main output when available"),
+            pSyncMenu);
+    addControl("[AbletonLink]",
+            "link_audio_sources_enabled",
+            tr("Ableton Link Audio Sources"),
+            tr("Publish active Mixxx sources as separate Ableton Link Audio channels"),
+            pSyncMenu);
+    addControl("[AbletonLink]",
+            "link_audio_receive_enabled",
+            tr("Ableton Link Audio Receive"),
+            tr("Mix remote Ableton Link Audio channels into Mixxx's main output"),
+            pSyncMenu);
+    addControl("[AbletonLink]",
+            "link_audio_receive_muted",
+            tr("Ableton Link Audio Receive Mute"),
+            tr("Mute received Ableton Link Audio while keeping subscriptions active"),
+            pSyncMenu);
+    addControl("[AbletonLink]",
+            "link_audio_receive_gain",
+            tr("Ableton Link Audio Receive Gain"),
+            tr("Gain applied to received Ableton Link Audio"),
             pSyncMenu);
     addControl("[AbletonLink]",
             "link_audio_available",
-            tr("Ableton LinkAudio Available"),
-            tr("Whether this Mixxx build includes Ableton LinkAudio support"),
+            tr("Ableton Link Audio Available"),
+            tr("Whether this Mixxx build includes Ableton Link Audio support"),
             pSyncMenu);
     addControl("[AbletonLink]",
             "link_audio_num_channels",
-            tr("Ableton LinkAudio Channels"),
-            tr("Number of discovered Ableton LinkAudio channels"),
+            tr("Ableton Link Audio Channels"),
+            tr("Number of discovered Ableton Link Audio channels"),
+            pSyncMenu);
+    addControl("[AbletonLink]",
+            "link_audio_receive_num_channels",
+            tr("Ableton Link Audio Receive Channels"),
+            tr("Number of remote Ableton Link Audio channels subscribed for receive"),
+            pSyncMenu);
+    addControl("[AbletonLink]",
+            "link_audio_receive_active",
+            tr("Ableton Link Audio Receive Active"),
+            tr("Whether received Ableton Link Audio is currently being mixed into the main output"),
             pSyncMenu);
     addControl("[AbletonLink]",
             "quantized_launch",

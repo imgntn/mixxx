@@ -49,14 +49,15 @@ The public integration surface is the `[AbletonLink]` control group:
 | `sync_enabled` | yes | Requested Link session enable state. |
 | `enabled` | no | Effective Link engine state. |
 | `start_stop_sync_enabled` | yes | Requested Link Start/Stop Sync state. |
-| `link_audio_enabled` | yes | Requested LinkAudio enable state, honored when built with LinkAudio headers. |
-| `link_audio_receive_enabled` | yes | Requested state for mixing remote LinkAudio into the local main output. |
-| `link_audio_receive_muted` | yes | Mutes received LinkAudio while keeping subscriptions active. |
-| `link_audio_receive_gain` | yes | Gain multiplier for received LinkAudio, clamped to `0.0` through `2.0`. |
-| `link_audio_available` | no | Build capability for LinkAudio. |
-| `link_audio_num_channels` | no | Number of discovered LinkAudio channels. |
-| `link_audio_receive_num_channels` | no | Number of remote LinkAudio channels currently subscribed for receive. |
-| `link_audio_receive_active` | no | `1` while received LinkAudio was mixed into the main output in the current callback. |
+| `link_audio_enabled` | yes | Requested Link Audio enable state, honored when built with Link Audio headers. Publishes `Mixxx Main` when active. |
+| `link_audio_sources_enabled` | yes | Optional per-source Link Audio publishing for decks, samplers, microphones, auxiliary inputs, and preview decks. |
+| `link_audio_receive_enabled` | yes | Requested state for mixing remote Link Audio into the local main output. |
+| `link_audio_receive_muted` | yes | Mutes received Link Audio while keeping subscriptions active. |
+| `link_audio_receive_gain` | yes | Gain multiplier for received Link Audio, clamped to `0.0` through `2.0`. |
+| `link_audio_available` | no | Build capability for Link Audio. |
+| `link_audio_num_channels` | no | Number of discovered Link Audio channels. |
+| `link_audio_receive_num_channels` | no | Number of remote Link Audio channels currently subscribed for receive. |
+| `link_audio_receive_active` | no | `1` while received Link Audio was mixed into the main output in the current callback. |
 | `quantized_launch` | yes | Momentary command to start Link transport and synced Mixxx decks on the selected launch quantum. |
 | `launch_quantum` | yes | Launch grid in beats. Supported values are `1`, `2`, `4`, and `8`. |
 | `num_peers` | no | Number of other Link peers. |
@@ -127,18 +128,19 @@ Linux:
 
 - Mixxx uses Ableton Link's default platform clock and `HostTimeFilter`, not a
   Windows-only timing source.
-- LinkAudio support is detected from headers with
+- Link Audio support is detected from headers with
   `__has_include(<ableton/LinkAudio.hpp>)`, so classic Link builds can still
   compile against older system packages.
+- `FETCH_ABLETONLINK` defaults to `OFF` so distribution builds do not download
+  dependencies during configure. Maintainers may set it to `ON` for local
+  validation against Link 4.0 headers.
 - Engine publishing and receiving paths depend on Mixxx's normal audio callback
   buffers, not WASAPI, CoreAudio, ALSA, JACK, PulseAudio, or PipeWire APIs.
 - QProcess-based external peer tests redirect output through
   `QProcess::nullDevice()`, which is portable.
-- Windows-only validation helpers live under `res/abletonlink/windows-*` and do
-  not define the behavior expected from macOS or Linux builds.
-
-Platform-specific validation guidance is tracked in
-`res/abletonlink/CROSS_PLATFORM_VALIDATION.md`.
+- Platform-specific validation guidance is in `MANUAL_VERIFICATION.md`. Local
+  helper scripts, generated checklists, and captured validation results should
+  live outside the Mixxx source tree.
 
 ## Current Known Limitations
 
@@ -162,29 +164,34 @@ calling Link beat/time APIs. If a future backend supplies an exact output-buffer
 system timestamp, the explicit timestamp overload can bypass the host-time
 filter.
 
-### LinkAudio
+### Link Audio
 
-Ableton Link 4.0 adds LinkAudio for audio-channel sharing between peers. Mixxx
+Ableton Link 4.0 adds Link Audio for audio-channel sharing between peers. Mixxx
 detects `LinkAudio.hpp` at compile time. When present, `AbletonLink` uses
-`ableton::LinkAudio`, exposes LinkAudio enable/availability controls, and
+`ableton::LinkAudio`, exposes Link Audio enable/availability controls, and
 publishes the discovered channel count from Link's channels-changed callback.
-It owns persistent `ableton::LinkAudioSink` instances for `Mixxx Main` and each
-registered local engine source. Active deck, sampler, microphone, auxiliary, and
-preview-deck buffers are published as pre-fader LinkAudio channels with stable
-names such as `Mixxx Deck 1` and `Mixxx Sampler 1`. Sinks are registered when
-channels are added to `EngineMixer`, so the engine callback does not allocate or
-destroy LinkAudio routes. When LinkAudio headers are absent, Mixxx still builds
-against older Link headers and the LinkAudio controls report unavailable.
+It owns persistent `ableton::LinkAudioSink` instances for advertised channels.
+`link_audio_enabled` publishes the final stereo main output as `Mixxx Main`.
+`link_audio_sources_enabled` separately opts into publishing registered local
+engine sources. Active deck, sampler, microphone, auxiliary, and preview-deck
+buffers are published as pre-fader Link Audio channels with stable names such as
+`Mixxx Deck 1` and `Mixxx Sampler 1`. Sink creation/destruction is handled from
+the Qt/control side when controls or registered outputs change; the engine
+callback only publishes to already-created sinks. When Link Audio headers are
+absent, Mixxx still builds against older Link headers and the Link Audio
+controls report unavailable.
 
-Receiving LinkAudio streams into Mixxx is implemented as an explicit,
+Receiving Link Audio streams into Mixxx is implemented as an explicit,
 default-off main-output input. `AbletonLink` subscribes to discovered channels
 whose `peerName` does not match Mixxx's generated local peer name, buffers
-incoming one- or two-channel int16 audio into fixed-size ring slots, applies a
-simple sample-rate ratio while reading, and mixes the result into the main
-output with the user-selected receive gain unless muted. `EngineMixer` publishes
-`Mixxx Main` before inbound receive mixing so received remote audio is audible
-locally but is not immediately re-advertised through Mixxx's own main LinkAudio
-sink.
+incoming one- or two-channel int16 audio into fixed-size ring slots, and uses
+each buffer's `beginBeats()`/`endBeats()` metadata to align receive mixing to
+the local output timeline. Mixxx currently targets a fixed four-beat receive
+latency, following Ableton's example renderer model, and mixes the result into
+the main output with the user-selected receive gain unless muted. `EngineMixer`
+publishes `Mixxx Main` before inbound receive mixing so received remote audio is
+audible locally but is not immediately re-advertised through Mixxx's own main
+Link Audio sink.
 
 The current receive path is intentionally a mixer input, not a full routing
 matrix. It does not expose per-remote-channel solo/monitor routing yet; those
