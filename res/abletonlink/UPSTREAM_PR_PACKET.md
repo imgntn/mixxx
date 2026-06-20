@@ -76,13 +76,15 @@ res/abletonlink/DEVELOPER_NOTES.md
 Build:
 
 ```powershell
-cmd /c "`"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat`" && cmake --build build\x64__abletonlink --target mixxx-test --config RelWithDebInfo --parallel 8"
+$Vcvars64 = Join-Path ${env:ProgramFiles} "Microsoft Visual Studio/2022/Community/VC/Auxiliary/Build/vcvars64.bat"
+cmd /c "call `"$Vcvars64`" && cmake --build `"build/x64__abletonlink`" --target mixxx-test --config RelWithDebInfo --parallel 8"
 ```
 
 Link-focused engine tests:
 
 ```powershell
-build\x64__abletonlink\mixxx-test.exe --gtest_filter=EngineSyncTest.*Link* --gtest_color=no
+$MixxxTest = Join-Path "build/x64__abletonlink" "mixxx-test.exe"
+& $MixxxTest --gtest_filter=EngineSyncTest.*Link* --gtest_color=no
 ```
 
 Observed local result:
@@ -97,8 +99,10 @@ The skipped test is the optional external peer test when
 The Link 4.0 / LinkAudio build was also built and tested with the same filter:
 
 ```powershell
-$env:QT_QPA_PLATFORM_PLUGIN_PATH = "X:\mixxx_test\mixxx\build\x64__abletonlink\platforms"
-build\x64__abletonlink4\mixxx-test.exe --gtest_filter=EngineSyncTest.*Link* --gtest_color=no
+$RepoRoot = Resolve-Path "."
+$env:QT_QPA_PLATFORM_PLUGIN_PATH = Join-Path $RepoRoot "build/x64__abletonlink/platforms"
+$MixxxTest = Join-Path "build/x64__abletonlink4" "mixxx-test.exe"
+& $MixxxTest --gtest_filter=EngineSyncTest.*Link* --gtest_color=no
 ```
 
 Observed local result:
@@ -110,8 +114,10 @@ Observed local result:
 External peer test:
 
 ```powershell
-$env:MIXXX_LINK_PEER_EXE = "X:\mixxx_test\ableton-link-peer-tools\build\mixxx-link-peer.exe"
-build\x64__abletonlink\mixxx-test.exe --gtest_filter=EngineSyncTest.LinkDiscoversExternalPeersWhenConfigured --gtest_color=no
+$PeerToolsRoot = "<absolute path to ableton-link-peer-tools>"
+$env:MIXXX_LINK_PEER_EXE = Join-Path $PeerToolsRoot "build/mixxx-link-peer.exe"
+$MixxxTest = Join-Path "build/x64__abletonlink" "mixxx-test.exe"
+& $MixxxTest --gtest_filter=EngineSyncTest.LinkDiscoversExternalPeersWhenConfigured --gtest_color=no
 ```
 
 Observed local result:
@@ -132,7 +138,8 @@ Optional Windows audio capture preflight:
 
 ```powershell
 python -m pip install --user soundcard
-.\res\abletonlink\windows-audio-preflight.ps1
+$RepoRoot = Resolve-Path "."
+& (Join-Path $RepoRoot "res/abletonlink/windows-audio-preflight.ps1")
 ```
 
 Observed earlier local result with audio preflight:

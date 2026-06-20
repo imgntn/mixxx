@@ -180,15 +180,18 @@ Most Link tests are self-contained. The optional external-peer test requires a
 local Link peer executable:
 
 ```powershell
-$env:MIXXX_LINK_PEER_EXE = "C:\path\to\mixxx-link-peer.exe"
-build\x64__abletonlink\mixxx-test.exe --gtest_filter=EngineSyncTest.LinkDiscoversExternalPeersWhenConfigured
+$MixxxTest = Join-Path "build/x64__abletonlink" "mixxx-test.exe"
+$env:MIXXX_LINK_PEER_EXE = "<absolute path to mixxx-link-peer.exe>"
+& $MixxxTest --gtest_filter=EngineSyncTest.LinkDiscoversExternalPeersWhenConfigured
 ```
 
 On macOS and Linux:
 
 ```shell
-export MIXXX_LINK_PEER_EXE=/path/to/mixxx-link-peer
-./mixxx-test --gtest_filter=EngineSyncTest.LinkDiscoversExternalPeersWhenConfigured
+MIXXX_TEST="/absolute/path/to/mixxx-test"
+MIXXX_LINK_PEER_EXE="/absolute/path/to/mixxx-link-peer"
+export MIXXX_LINK_PEER_EXE
+"$MIXXX_TEST" --gtest_filter=EngineSyncTest.LinkDiscoversExternalPeersWhenConfigured
 ```
 
 If `MIXXX_LINK_PEER_EXE` is not set, that test skips. Other Link tests still

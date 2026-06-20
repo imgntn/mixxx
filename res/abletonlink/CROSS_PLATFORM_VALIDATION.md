@@ -28,14 +28,17 @@ they simply leave LinkAudio controls unavailable.
 Run the focused Link tests first:
 
 ```shell
-./mixxx-test --gtest_filter='EngineSyncTest.*Link*' --gtest_color=no
+MIXXX_TEST="/absolute/path/to/mixxx-test"
+"$MIXXX_TEST" --gtest_filter='EngineSyncTest.*Link*' --gtest_color=no
 ```
 
 Run the optional external peer test with a local LinkHut or peer harness:
 
 ```shell
-export MIXXX_LINK_PEER_EXE=/path/to/mixxx-link-peer
-./mixxx-test --gtest_filter=EngineSyncTest.LinkDiscoversExternalPeersWhenConfigured --gtest_color=no
+MIXXX_TEST="/absolute/path/to/mixxx-test"
+MIXXX_LINK_PEER_EXE="/absolute/path/to/mixxx-link-peer"
+export MIXXX_LINK_PEER_EXE
+"$MIXXX_TEST" --gtest_filter=EngineSyncTest.LinkDiscoversExternalPeersWhenConfigured --gtest_color=no
 ```
 
 Expected result: the focused tests pass, or the external peer test skips only

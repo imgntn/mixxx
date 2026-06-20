@@ -9,7 +9,8 @@ Before the manual Live/Mixxx pass, Codex can run a bounded local audio preflight
 that does not create network churn:
 
 ```powershell
-.\res\abletonlink\windows-audio-preflight.ps1
+$RepoRoot = Resolve-Path "."
+& (Join-Path $RepoRoot "res/abletonlink/windows-audio-preflight.ps1")
 ```
 
 The script plays a short generated click pattern through the default Windows
@@ -26,8 +27,11 @@ If the default `python` launcher or global `pip` hangs, use a known-good Python
 interpreter and pass it explicitly:
 
 ```powershell
-$env:PYTHONPATH = "X:\mixxx_test\ableton-link-peer-tools\vendor\python"
-.\res\abletonlink\windows-audio-preflight.ps1 -PythonExe "C:\Users\James Pollack\AppData\Local\Programs\Python\Python312\python.exe"
+$RepoRoot = Resolve-Path "."
+$PeerToolsRoot = "<absolute path to ableton-link-peer-tools>"
+$PythonExe = "<absolute path to python.exe>"
+$env:PYTHONPATH = Join-Path $PeerToolsRoot "vendor/python"
+& (Join-Path $RepoRoot "res/abletonlink/windows-audio-preflight.ps1") -PythonExe $PythonExe
 ```
 
 The preflight patches Python's `platform.win32_ver()` before importing
@@ -171,7 +175,8 @@ Codex actions:
 1. Confirm no old `mixxx.exe`, `mixxx-test.exe`, or `mixxx-link-peer.exe`
    processes from prior validation are running.
 2. Create a timestamped validation folder under
-   `X:\mixxx_test\ableton-link-peer-tools\logs\real_world_validation`.
+   the local validation artifact root, for example
+   `<validation-artifact-root>/logs/real_world_validation`.
 3. Launch Mixxx with an isolated `--settings-path` unless James asks to use the
    normal profile.
 4. Start passive Link peer harnesses only when useful for extra peer-count

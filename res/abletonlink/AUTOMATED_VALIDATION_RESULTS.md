@@ -9,7 +9,7 @@ Commit: `c34418db5a60`
 Primary evidence folder:
 
 ```text
-X:\mixxx_test\ableton-link-peer-tools\logs\automated_validation\20260619-201551
+<validation-artifact-root>/logs/automated_validation/20260619-201551
 ```
 
 ## Build validation
@@ -17,8 +17,9 @@ X:\mixxx_test\ableton-link-peer-tools\logs\automated_validation\20260619-201551
 Both Mixxx test binaries rebuilt successfully from a clean worktree:
 
 ```powershell
-cmd /c 'call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" && cmake --build build\x64__abletonlink --target mixxx-test --config RelWithDebInfo --parallel 8'
-cmd /c 'call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" && cmake --build build\x64__abletonlink4 --target mixxx-test --config RelWithDebInfo --parallel 8'
+$Vcvars64 = Join-Path ${env:ProgramFiles} "Microsoft Visual Studio/2022/Community/VC/Auxiliary/Build/vcvars64.bat"
+cmd /c "call `"$Vcvars64`" && cmake --build `"build/x64__abletonlink`" --target mixxx-test --config RelWithDebInfo --parallel 8"
+cmd /c "call `"$Vcvars64`" && cmake --build `"build/x64__abletonlink4`" --target mixxx-test --config RelWithDebInfo --parallel 8"
 ```
 
 Result: both builds passed.
@@ -28,7 +29,8 @@ Result: both builds passed.
 Packaged Link build:
 
 ```powershell
-build\x64__abletonlink\mixxx-test.exe --gtest_filter=EngineSyncTest.*Link* --gtest_color=no
+$MixxxTest = Join-Path "build/x64__abletonlink" "mixxx-test.exe"
+& $MixxxTest --gtest_filter=EngineSyncTest.*Link* --gtest_color=no
 ```
 
 Result: `45 passed, 1 skipped`.
@@ -36,14 +38,16 @@ Result: `45 passed, 1 skipped`.
 Log:
 
 ```text
-X:\mixxx_test\ableton-link-peer-tools\logs\automated_validation\20260619-201551\engine_sync_link_packaged.log
+<validation-artifact-root>/logs/automated_validation/20260619-201551/engine_sync_link_packaged.log
 ```
 
 Link 4.0 / LinkAudio build:
 
 ```powershell
-$env:QT_QPA_PLATFORM_PLUGIN_PATH = "X:\mixxx_test\mixxx\build\x64__abletonlink\platforms"
-build\x64__abletonlink4\mixxx-test.exe --gtest_filter=EngineSyncTest.*Link* --gtest_color=no
+$RepoRoot = Resolve-Path "."
+$env:QT_QPA_PLATFORM_PLUGIN_PATH = Join-Path $RepoRoot "build/x64__abletonlink/platforms"
+$MixxxTest = Join-Path "build/x64__abletonlink4" "mixxx-test.exe"
+& $MixxxTest --gtest_filter=EngineSyncTest.*Link* --gtest_color=no
 ```
 
 Result: `45 passed, 1 skipped`.
@@ -51,7 +55,7 @@ Result: `45 passed, 1 skipped`.
 Log:
 
 ```text
-X:\mixxx_test\ableton-link-peer-tools\logs\automated_validation\20260619-201551\engine_sync_link_link4.log
+<validation-artifact-root>/logs/automated_validation/20260619-201551/engine_sync_link_link4.log
 ```
 
 The skipped test in both suites was the optional external peer test, which is
@@ -62,8 +66,10 @@ run explicitly below.
 Packaged Link build:
 
 ```powershell
-$env:MIXXX_LINK_PEER_EXE = "X:\mixxx_test\ableton-link-peer-tools\build\mixxx-link-peer.exe"
-build\x64__abletonlink\mixxx-test.exe --gtest_filter=EngineSyncTest.LinkDiscoversExternalPeersWhenConfigured --gtest_color=no
+$PeerToolsRoot = "<absolute path to ableton-link-peer-tools>"
+$env:MIXXX_LINK_PEER_EXE = Join-Path $PeerToolsRoot "build/mixxx-link-peer.exe"
+$MixxxTest = Join-Path "build/x64__abletonlink" "mixxx-test.exe"
+& $MixxxTest --gtest_filter=EngineSyncTest.LinkDiscoversExternalPeersWhenConfigured --gtest_color=no
 ```
 
 Result: `1 passed`.
@@ -71,15 +77,18 @@ Result: `1 passed`.
 Log:
 
 ```text
-X:\mixxx_test\ableton-link-peer-tools\logs\automated_validation\20260619-201551\external_peer_packaged_sequential.log
+<validation-artifact-root>/logs/automated_validation/20260619-201551/external_peer_packaged_sequential.log
 ```
 
 Link 4.0 / LinkAudio build:
 
 ```powershell
-$env:QT_QPA_PLATFORM_PLUGIN_PATH = "X:\mixxx_test\mixxx\build\x64__abletonlink\platforms"
-$env:MIXXX_LINK_PEER_EXE = "X:\mixxx_test\ableton-link-peer-tools\build-link4\mixxx-link-peer.exe"
-build\x64__abletonlink4\mixxx-test.exe --gtest_filter=EngineSyncTest.LinkDiscoversExternalPeersWhenConfigured --gtest_color=no
+$RepoRoot = Resolve-Path "."
+$PeerToolsRoot = "<absolute path to ableton-link-peer-tools>"
+$env:QT_QPA_PLATFORM_PLUGIN_PATH = Join-Path $RepoRoot "build/x64__abletonlink/platforms"
+$env:MIXXX_LINK_PEER_EXE = Join-Path $PeerToolsRoot "build-link4/mixxx-link-peer.exe"
+$MixxxTest = Join-Path "build/x64__abletonlink4" "mixxx-test.exe"
+& $MixxxTest --gtest_filter=EngineSyncTest.LinkDiscoversExternalPeersWhenConfigured --gtest_color=no
 ```
 
 Result: `1 passed` on clean retry.
@@ -87,7 +96,7 @@ Result: `1 passed` on clean retry.
 Log:
 
 ```text
-X:\mixxx_test\ableton-link-peer-tools\logs\automated_validation\20260619-201551\external_peer_link4_retry.log
+<validation-artifact-root>/logs/automated_validation/20260619-201551/external_peer_link4_retry.log
 ```
 
 ### External peer caveat
@@ -103,16 +112,23 @@ at the same time unless the test harness is extended to isolate sessions.
 Attempted:
 
 ```powershell
-$env:PYTHONPATH = "X:\mixxx_test\ableton-link-peer-tools\vendor\python"
-.\res\abletonlink\windows-audio-preflight.ps1 -RepoRoot X:\mixxx_test\mixxx -OutputRoot X:\mixxx_test\ableton-link-peer-tools\logs\audio_preflight -PlaybackVolume 20 -PythonExe "C:\Users\James Pollack\AppData\Local\Programs\Python\Python312\python.exe"
+$RepoRoot = Resolve-Path "."
+$PeerToolsRoot = "<absolute path to ableton-link-peer-tools>"
+$PythonExe = "<absolute path to python.exe>"
+$env:PYTHONPATH = Join-Path $PeerToolsRoot "vendor/python"
+& (Join-Path $RepoRoot "res/abletonlink/windows-audio-preflight.ps1") `
+    -RepoRoot $RepoRoot `
+    -OutputRoot (Join-Path $PeerToolsRoot "logs/audio_preflight") `
+    -PlaybackVolume 20 `
+    -PythonExe $PythonExe
 ```
 
 Result: passed with Python `soundcard` WASAPI loopback.
 
 ```text
-X:\mixxx_test\ableton-link-peer-tools\logs\audio_preflight\20260619-224738\audio-preflight-summary.json
-X:\mixxx_test\ableton-link-peer-tools\logs\audio_preflight\20260619-224738\audio-preflight-checklist-20260619-224738.html
-X:\mixxx_test\ableton-link-peer-tools\logs\audio_preflight\20260619-224738\WASAPI_loopback\audio-preflight-waveforms.png
+<validation-artifact-root>/logs/audio_preflight/20260619-224738/audio-preflight-summary.json
+<validation-artifact-root>/logs/audio_preflight/20260619-224738/audio-preflight-checklist-20260619-224738.html
+<validation-artifact-root>/logs/audio_preflight/20260619-224738/WASAPI_loopback/audio-preflight-waveforms.png
 ```
 
 Summary from the successful run:
@@ -145,7 +161,7 @@ For the successful run, `soundcard` was loaded from a locally unpacked pure
 Python wheel under:
 
 ```text
-X:\mixxx_test\ableton-link-peer-tools\vendor\python
+<validation-artifact-root>/vendor/python
 ```
 
 ## Automated coverage still missing
@@ -169,8 +185,8 @@ and FFmpeg DirectShow enumeration for capture devices.
 Latest generated checklist artifacts:
 
 ```text
-X:\mixxx_test\ableton-link-peer-tools\logs\real_world_validation\20260619-222956\preflight-state.json
-X:\mixxx_test\ableton-link-peer-tools\logs\real_world_validation\20260619-222956\windows-real-world-validation-checklist-20260619-222956.html
+<validation-artifact-root>/logs/real_world_validation/20260619-222956/preflight-state.json
+<validation-artifact-root>/logs/real_world_validation/20260619-222956/windows-real-world-validation-checklist-20260619-222956.html
 ```
 
 Captured metadata:
@@ -181,4 +197,4 @@ Captured metadata:
 - DirectShow capture devices: `Microphone (BlackShark V3 - Chat)`,
   `Microphone (Steam Streaming Microphone)`
 - XML/UI parse preflight: OK for edited skin toolbar XML files and
-  `src\preferences\dialog\dlgprefsyncdlg.ui`
+  `src/preferences/dialog/dlgprefsyncdlg.ui`

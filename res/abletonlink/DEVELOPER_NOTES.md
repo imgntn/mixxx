@@ -101,8 +101,9 @@ Most Link tests are self-contained. One optional test validates real Link peer
 discovery and peer churn:
 
 ```powershell
-$env:MIXXX_LINK_PEER_EXE = "C:\path\to\mixxx-link-peer.exe"
-build\x64__abletonlink\mixxx-test.exe --gtest_filter=EngineSyncTest.LinkDiscoversExternalPeersWhenConfigured
+$MixxxTest = Join-Path "build/x64__abletonlink" "mixxx-test.exe"
+$env:MIXXX_LINK_PEER_EXE = "<absolute path to mixxx-link-peer.exe>"
+& $MixxxTest --gtest_filter=EngineSyncTest.LinkDiscoversExternalPeersWhenConfigured
 ```
 
 If `MIXXX_LINK_PEER_EXE` is not set, the test skips. This keeps normal test runs
@@ -113,8 +114,10 @@ On macOS and Linux the same test is enabled by exporting a local executable
 path:
 
 ```shell
-export MIXXX_LINK_PEER_EXE=/path/to/mixxx-link-peer
-./mixxx-test --gtest_filter=EngineSyncTest.LinkDiscoversExternalPeersWhenConfigured
+MIXXX_TEST="/absolute/path/to/mixxx-test"
+MIXXX_LINK_PEER_EXE="/absolute/path/to/mixxx-link-peer"
+export MIXXX_LINK_PEER_EXE
+"$MIXXX_TEST" --gtest_filter=EngineSyncTest.LinkDiscoversExternalPeersWhenConfigured
 ```
 
 ## Platform Portability
