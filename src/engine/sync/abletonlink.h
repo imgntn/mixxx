@@ -30,6 +30,7 @@
 #include "engine/enginebuffer.h"
 #include "engine/sync/syncable.h"
 #include "engine/sync/synccontrol.h"
+#include "util/defs.h"
 
 class ControlPotmeter;
 
