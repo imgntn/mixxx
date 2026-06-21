@@ -5,7 +5,7 @@ It is intended as a human-readable record for the fork, not necessarily as an
 upstream PR artifact.
 
 Branch: `codex/ableton-link-upstream`  
-Latest recorded commit: `044cf094ab Polish Ableton Link integration for review`  
+Latest recorded commit: `ce3fb5e3f0 Fix Ableton Link Linux include dependency`  
 Base used for this log: `upstream/main..HEAD`  
 Recorded: 2026-06-20
 
@@ -277,8 +277,11 @@ Suggested squashed PR summary:
 - Decide whether to include this private devlog. It is probably better kept out
   of the upstream PR.
 - Re-run the focused Link test suite after the final squash.
-- On macOS, verify Link peer discovery, Start/Stop Sync, quantized launch, and
-  Link Audio availability if using Link 4 headers.
+- Treat James's macOS build and real Ableton Live verification as the final
+  release gate before opening the upstream PR. The Mac pass should cover a clean
+  Link-enabled build, the focused `EngineSyncTest.*Link*` tests, peer discovery
+  with Ableton Live, Start/Stop Sync, selected launch quantum values, and Link
+  Audio availability if using Link 4 headers.
 - On Linux, verify both system-package and fetch-off behavior if possible.
 - On Windows, re-check the Live audio-driver note: Live's Link button can depend
   on Live's selected driver mode, while Mixxx's own Link controls should remain
