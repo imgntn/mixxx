@@ -11,7 +11,7 @@ explicitly decides otherwise.
 - Push remote: `origin` (`git@github.com:imgntn/mixxx.git`)
 - Upstream remote: `upstream` (`https://github.com/mixxxdj/mixxx.git`)
 - Latest local validation cleanup commit:
-  `7208776f05 Clean up Ableton Link validation warnings`
+  `5a573b3819 Document macOS Ableton Link validation`
 - macOS automated validation has passed on a clean upstream-Link checkout. Do
   not open a PR against `mixxxdj/mixxx` until James explicitly asks.
 
@@ -126,36 +126,38 @@ from James's local performance Mixxx tree:
 
 - Worktree: `/Users/jamespollack/imgntn_repos/mixxx-abletonlink-validation`
 - Branch: `codex/ableton-link-validation-cleanups`
-- Commit: `7208776f05 Clean up Ableton Link validation warnings`
+- Commit: `5a573b3819 Document macOS Ableton Link validation`
 - CMake options:
   - `-DABLETONLINK=ON`
   - `-DFETCH_ABLETONLINK=ON`
   - `-DBUILD_TESTING=ON`
 - Build target: `mixxx-test`
+- External peer helper:
+  `/Users/jamespollack/imgntn_repos/ableton-link-validation-tools/build-peer-helper/mixxx-link-peer`
 - Validation runner:
 
 ```bash
-bash /Users/jamespollack/imgntn_repos/ableton-link-validation-tools/run-link-validation.sh \
+/Users/jamespollack/imgntn_repos/ableton-link-validation-tools/run-link-validation.sh \
   --mixxx-root /Users/jamespollack/imgntn_repos/mixxx-abletonlink-validation \
   --build-dir /Users/jamespollack/imgntn_repos/mixxx-abletonlink-validation/build-link-validation \
+  --peer-exe /Users/jamespollack/imgntn_repos/ableton-link-validation-tools/build-peer-helper/mixxx-link-peer \
   --no-browser
 ```
 
 Latest report:
 
 ```text
-/Users/jamespollack/imgntn_repos/ableton-link-validation-tools/logs/20260621-190702/link-validation-preflight.md
+/Users/jamespollack/imgntn_repos/ableton-link-validation-tools/logs/20260621-195926/link-validation-preflight.md
 ```
 
 Result:
 
 - `EngineSyncTest.*Link*`: 47 selected.
-- 45 passed.
-- 2 skipped:
-  - `EngineSyncTest.LinkAudioPublishSnapshotSurvivesControlChurn`, because
-    Link Audio support is disabled in this macOS build.
-  - `EngineSyncTest.LinkDiscoversExternalPeersWhenConfigured`, because no
-    external peer executable was provided through `MIXXX_LINK_PEER_EXE`.
+- 46 passed.
+- 1 skipped: `EngineSyncTest.LinkAudioPublishSnapshotSurvivesControlChurn`,
+  because Link Audio support is disabled in this macOS build.
+- `EngineSyncTest.LinkDiscoversExternalPeersWhenConfigured` passed with the
+  validation-tools `peer-helper/mixxx-link-peer` executable.
 
 During macOS validation, a non-LinkAudio build warning was fixed by moving
 LinkAudio receive-only helpers behind the LinkAudio compile guard. A flaky
@@ -163,10 +165,14 @@ launch-quantum assertion was also made deterministic by checking that the
 scheduled launch ETA is bounded by the selected launch quantum instead of
 comparing against a live next-beat status value.
 
+Standalone helper build note: the helper needs `CMAKE_PREFIX_PATH` pointed at
+the vcpkg installed triplet prefix on macOS so Ableton Link's packaged `asio`
+dependency resolves outside the full Mixxx build.
+
 ## Remaining Release Gate
 
-The remaining pre-PR gate is real macOS peer validation with Ableton Live or
-another Link-capable peer:
+The remaining pre-PR gate is manual real-peer validation with Ableton Live or
+another Link-capable app. Automated external peer discovery already passes.
 
 - Launch Mixxx with Ableton Live open and Link enabled.
 - Verify Mixxx Link controls appear.

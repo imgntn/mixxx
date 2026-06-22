@@ -5,7 +5,7 @@ It is intended as a human-readable record for the fork, not necessarily as an
 upstream PR artifact.
 
 Branch: `codex/ableton-link-validation-cleanups`
-Latest recorded commit: `7208776f05 Clean up Ableton Link validation warnings`
+Latest recorded commit: `5a573b3819 Document macOS Ableton Link validation`
 Base used for this log: `upstream/main..HEAD`
 Recorded: 2026-06-21
 
@@ -243,20 +243,22 @@ macOS clean upstream-Link checkout:
 - Validation command:
 
 ```bash
-bash /Users/jamespollack/imgntn_repos/ableton-link-validation-tools/run-link-validation.sh \
+/Users/jamespollack/imgntn_repos/ableton-link-validation-tools/run-link-validation.sh \
   --mixxx-root /Users/jamespollack/imgntn_repos/mixxx-abletonlink-validation \
   --build-dir /Users/jamespollack/imgntn_repos/mixxx-abletonlink-validation/build-link-validation \
+  --peer-exe /Users/jamespollack/imgntn_repos/ableton-link-validation-tools/build-peer-helper/mixxx-link-peer \
   --no-browser
 ```
 
 - Report:
-  `/Users/jamespollack/imgntn_repos/ableton-link-validation-tools/logs/20260621-190702/link-validation-preflight.md`
+  `/Users/jamespollack/imgntn_repos/ableton-link-validation-tools/logs/20260621-195926/link-validation-preflight.md`
 - Focused tests: `EngineSyncTest.*Link*`
-- Result: 45 passed, 2 skipped
-- Expected skips:
+- Result: 46 passed, 1 skipped
+- Expected skip:
   - Link Audio snapshot churn because Link Audio was disabled in this macOS
-    build
-  - External peer discovery when `MIXXX_LINK_PEER_EXE` is not set
+    build.
+- External peer discovery passed with the validation-tools
+  `peer-helper/mixxx-link-peer` executable.
 - Follow-up cleanup:
   - Moved LinkAudio receive-only helpers behind the LinkAudio compile guard.
   - Made the launch-quantum test assert against the selected launch window
