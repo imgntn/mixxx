@@ -4,10 +4,10 @@ This file is a private development log for the Ableton Link integration branch.
 It is intended as a human-readable record for the fork, not necessarily as an
 upstream PR artifact.
 
-Branch: `codex/ableton-link-upstream`  
-Latest recorded commit: `ce3fb5e3f0 Fix Ableton Link Linux include dependency`  
-Base used for this log: `upstream/main..HEAD`  
-Recorded: 2026-06-20
+Branch: `codex/ableton-link-validation-cleanups`
+Latest recorded commit: `7208776f05 Clean up Ableton Link validation warnings`
+Base used for this log: `upstream/main..HEAD`
+Recorded: 2026-06-21
 
 ## What We Built
 
@@ -231,8 +231,36 @@ Recorded: 2026-06-20
 - `2840af7704` Guard Link Audio registry and input buffer races
 - `122d8f2b74` Avoid shared ownership on Link Audio callback path
 - `044cf094ab` Polish Ableton Link integration for review
+- `7208776f05` Clean up Ableton Link validation warnings
 
 ## Latest Verification Snapshot
+
+macOS clean upstream-Link checkout:
+
+- Worktree: `/Users/jamespollack/imgntn_repos/mixxx-abletonlink-validation`
+- Command: `cmake --build build-link-validation --target mixxx-test -j 8`
+- Result: passed
+- Validation command:
+
+```bash
+bash /Users/jamespollack/imgntn_repos/ableton-link-validation-tools/run-link-validation.sh \
+  --mixxx-root /Users/jamespollack/imgntn_repos/mixxx-abletonlink-validation \
+  --build-dir /Users/jamespollack/imgntn_repos/mixxx-abletonlink-validation/build-link-validation \
+  --no-browser
+```
+
+- Report:
+  `/Users/jamespollack/imgntn_repos/ableton-link-validation-tools/logs/20260621-190702/link-validation-preflight.md`
+- Focused tests: `EngineSyncTest.*Link*`
+- Result: 45 passed, 2 skipped
+- Expected skips:
+  - Link Audio snapshot churn because Link Audio was disabled in this macOS
+    build
+  - External peer discovery when `MIXXX_LINK_PEER_EXE` is not set
+- Follow-up cleanup:
+  - Moved LinkAudio receive-only helpers behind the LinkAudio compile guard.
+  - Made the launch-quantum test assert against the selected launch window
+    instead of a moving next-beat status value.
 
 Classic Link build:
 
@@ -277,11 +305,11 @@ Suggested squashed PR summary:
 - Decide whether to include this private devlog. It is probably better kept out
   of the upstream PR.
 - Re-run the focused Link test suite after the final squash.
-- Treat James's macOS build and real Ableton Live verification as the final
-  release gate before opening the upstream PR. The Mac pass should cover a clean
-  Link-enabled build, the focused `EngineSyncTest.*Link*` tests, peer discovery
-  with Ableton Live, Start/Stop Sync, selected launch quantum values, and Link
-  Audio availability if using Link 4 headers.
+- The clean macOS build and focused `EngineSyncTest.*Link*` automated pass are
+  complete. Treat real Ableton Live peer validation as the remaining macOS gate
+  before opening the upstream PR. The peer pass should cover peer discovery,
+  Start/Stop Sync, selected launch quantum values, and Link Audio availability
+  if using Link 4 headers.
 - On Linux, verify both system-package and fetch-off behavior if possible.
 - On Windows, re-check the Live audio-driver note: Live's Link button can depend
   on Live's selected driver mode, while Mixxx's own Link controls should remain
