@@ -3630,17 +3630,18 @@ TEST_F(EngineSyncTest, AbletonLinkQuantizedLaunchUsesSelectedLaunchQuantum) {
     ControlObject::set(ConfigKey("[AbletonLink]", "launch_quantum"), 4.0);
     ProcessBuffer();
 
-    const double nextBeatTime = ControlObject::get(
-            ConfigKey("[AbletonLink]", "next_beat_time_micros"));
     ControlObject::set(ConfigKey("[AbletonLink]", "quantized_launch"), 1.0);
 
     const double launchTime = ControlObject::get(
             ConfigKey("[AbletonLink]", "quantized_launch_time_micros"));
     const double launchEta = ControlObject::get(
             ConfigKey("[AbletonLink]", "quantized_launch_eta_micros"));
+    const double linkBpm = ControlObject::get(ConfigKey("[AbletonLink]", "bpm"));
+    ASSERT_GT(linkBpm, 0.0);
+    const double maxLaunchQuantumMicros = 4.0 * 60.0 * 1000000.0 / linkBpm;
     EXPECT_GT(launchTime, 0.0);
     EXPECT_GT(launchEta, 0.0);
-    EXPECT_GE(launchTime, nextBeatTime);
+    EXPECT_LE(launchEta, maxLaunchQuantumMicros);
     EXPECT_DOUBLE_EQ(4.0, ControlObject::get(ConfigKey("[AbletonLink]", "launch_quantum")));
     EXPECT_DOUBLE_EQ(1.0, ControlObject::get(ConfigKey("[AbletonLink]", "quantum")));
     EXPECT_DOUBLE_EQ(0.0, ControlObject::get(ConfigKey(m_sGroup1, "play")));

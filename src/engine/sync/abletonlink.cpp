@@ -22,7 +22,6 @@
 namespace {
 constexpr double kDefaultLinkTempo = 120.0;
 constexpr double kBeatSyncQuantum = 1.0;
-constexpr double kLinkAudioReceiveLatencyBeats = 4.0;
 constexpr int kDefaultLaunchQuantumBeats = 1;
 constexpr std::array<int, 4> kSupportedLaunchQuantumBeats{1, 2, 4, 8};
 constexpr int kNoPendingStartStopSyncState = -1;
@@ -30,11 +29,25 @@ constexpr int kPendingStop = 0;
 constexpr int kPendingStart = 1;
 #ifdef __ABLETONLINK__
 #ifdef MIXXX_ABLETON_LINK_AUDIO
+constexpr double kLinkAudioReceiveLatencyBeats = 4.0;
 constexpr char kLinkAudioMainOutputName[] = "Mixxx Main";
 std::string makeLinkAudioPeerName() {
     return QStringLiteral("Mixxx %1")
             .arg(QUuid::createUuid().toString(QUuid::WithoutBraces).left(8))
             .toStdString();
+}
+
+double linearInterpolate(
+        double value,
+        double inMin,
+        double inMax,
+        double outMin,
+        double outMax) {
+    const double inRange = inMax - inMin;
+    if (std::abs(inRange) < 1e-12) {
+        return outMin;
+    }
+    return outMin + ((value - inMin) / inRange) * (outMax - outMin);
 }
 #endif
 thread_local const AbletonLink* s_pAudioCallbackLink = nullptr;
@@ -50,19 +63,6 @@ int normalizeLaunchQuantumBeats(double requested, int fallback) {
         }
     }
     return fallback;
-}
-
-double linearInterpolate(
-        double value,
-        double inMin,
-        double inMax,
-        double outMin,
-        double outMax) {
-    const double inRange = inMax - inMin;
-    if (std::abs(inRange) < 1e-12) {
-        return outMin;
-    }
-    return outMin + ((value - inMin) / inRange) * (outMax - outMin);
 }
 } // anonymous namespace
 
